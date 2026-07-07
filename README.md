@@ -132,6 +132,18 @@ python main.py --serve
 
 浏览器打开 `http://localhost:5000`，在控制面板选择分类 → 点击运行 → 查看实时日志和历史文章。
 
+### 开发模式（前后端热更新）
+
+```bash
+# 终端1: 启动后端
+python main.py --serve
+
+# 终端2: 启动前端（热更新，修改代码自动刷新）
+cd frontend && npm run dev
+```
+
+前端开发服务器运行在 `http://localhost:5173`，自动代理 `/api` 请求到后端 5000 端口。
+
 ### 命令行模式
 
 ```bash
