@@ -9,7 +9,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-blue?logo=python" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/status-v2.0--beta-orange" alt="Status">
+  <img src="https://img.shields.io/badge/status-v2.1.0--stable-green" alt="Status">
 </p>
 
 ---
@@ -53,6 +53,8 @@
 | 🤖 **AI 全链路驱动** | 热点分析 + 选题 + 写作 + 多格式转化，一次运行产 5 份内容 |
 | 🕷️ **混合采集** | API / RSS + Scrapling 无头浏览器，覆盖有/无 API 站点 |
 | ⏰ **定时调度** | 守护模式按小时自动轮询多个分类 |
+| 🌐 **Web UI 管理** | 浏览器可视化选择分类、触发生成、查看实时日志 |
+| 📋 **历史管理** | 文章列表、多格式预览、复制下载、重新生成 |
 | 🌐 **静态站点** | 自动生成 docs/ 首页，按分类索引，支持 GitHub Pages 部署 |
 
 ---
@@ -65,6 +67,8 @@
 | AI 引擎 | OpenAI SDK | 兼容 DeepSeek / 通义千问 / 硅基流动 / OpenAI，配置即换 |
 | 输出 | Markdown | 博客 / 推文 / Newsletter / 脚本 / 英文 |
 | CLI | `argparse` | `--category` 指定分类，`--list-categories` 浏览，`--daemon` 守护 |
+| Web 后端 | **FastAPI + WebSocket** | REST API + 实时日志推送 |
+| Web 前端 | **React 18 + TypeScript + Vite** | 图形化管理界面，Ant Design 组件库 |
 | 部署 | GitHub Actions + Pages | 定时自动运行 + 静态站点托管 |
 
 ---
@@ -103,13 +107,32 @@ export OPENAI_API_KEY=sk-xxxxx
 # 测试连接
 python main.py --init
 
-# 查看所有可用分类
-python main.py --list-categories
+# 启动 Web 管理界面
+python main.py --serve
+
+# 浏览器打开 http://localhost:5000
+
+# 或者直接命令行跑一个分类
+python main.py --category tech
 ```
 
 ---
 
 ## 📌 使用指南
+
+### Web 管理界面（推荐）
+
+```bash
+# 1. 初始化 API Key
+python main.py --init
+
+# 2. 启动 Web 服务
+python main.py --serve
+```
+
+浏览器打开 `http://localhost:5000`，在控制面板选择分类 → 点击运行 → 查看实时日志和历史文章。
+
+### 命令行模式
 
 ```bash
 # 跑一个分类
@@ -132,6 +155,7 @@ python main.py --deploy                 # 部署到 GitHub Pages
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
+| `--serve` | 启动 Web 管理界面 | — |
 | `--category <名称>` | 指定运行分类 | `tech` |
 | `--list-categories` | 列出所有可用分类 | — |
 | `--debug` | 调试模式（详细日志） | `false` |
@@ -162,7 +186,7 @@ python main.py --deploy                 # 部署到 GitHub Pages
 ```
 ai-blog-factory/
 │
-├── main.py                 # 🧠 CLI 入口（--category 路由）
+├── main.py                 # 🧠 CLI 入口（--category 路由）+ --serve 启动 Web
 ├── config.yaml             # ⚙️ 全局配置（AI / 分类 / 输出 / 发布）
 ├── requirements.txt        # Python 依赖
 ├── .gitignore
@@ -176,6 +200,24 @@ ai-blog-factory/
 │   ├── registry.py         #   分类自动注册表
 │   └── scheduler.py        #   定时调度器（守护模式）
 │
+├── web/                    # 🌐 Web 后端（FastAPI）
+│   ├── server.py           #   FastAPI 应用工厂
+│   ├── models.py           #   Pydantic 数据模型
+│   ├── log_capture.py      #   stdout 日志捕获
+│   ├── routes/             #   REST API + WebSocket
+│   │   ├── categories.py   #   GET /api/categories
+│   │   ├── run.py          #   POST /api/run + WS /api/ws/logs
+│   │   ├── history.py      #   GET/DELETE /api/history
+│   │   └── config.py       #   GET/PUT /api/config
+│   └── static/             #   前端构建产物
+│
+├── frontend/               # ⚛️ React 前端
+│   ├── src/
+│   │   ├── pages/          #   页面组件
+│   │   ├── components/     #   通用组件
+│   │   └── api/            #   API 调用封装
+│   └── package.json
+│
 ├── categories/             # 📦 分类插件（低耦合，每类独立）
 │   ├── tech/               # 🔧 技术趋势
 │   ├── finance/            # 💰 金融财经
@@ -184,9 +226,6 @@ ai-blog-factory/
 │   ├── literature/         # 📚 文学艺术
 │   ├── world/              # 🌐 国际新闻
 │   └── zhongyi/            # 🌿 中医中药
-│
-├── tools/
-│   └── Scrapling-main/     # 🕷️ Scrapling 智能抓取引擎
 │
 └── docs/                   # 🌐 输出目录（GitHub Pages）
     ├── index.md            #   首页（按分类索引，自动更新）
@@ -276,12 +315,13 @@ python main.py --category mycategory
 
 ---
 
-## 🔮 后续规划（v2.1）
+## 🔮 后续规划
 
-- [ ] 🌐 **Web UI** — 浏览器可视化选择分类、触发生成、浏览历史
-- [ ] 📊 **更多分类** — 体育、健康、教育、环境等
-- [ ] 🎥 **视频自动化** — 集成 HyperFrames 渲染短视频
-- [ ] 📈 **数据看板** — 各分类产出统计、AI 调用成本
+- [x] 🌐 **Web UI** — 浏览器可视化选择分类、触发生成、浏览历史 ✅ v2.1.0
+- [ ] 🎥 **视频编辑** — 网页调整视频脚本、Remotion 实时预览与渲染
+- [ ] 📊 **数据看板** — 各分类产出统计、AI 调用成本
+- [ ] 📈 **更多分类** — 体育、健康、教育、环境等
+- [ ] ⚙️ **在线配置** — 浏览器编辑 config.yaml
 
 ---
 
