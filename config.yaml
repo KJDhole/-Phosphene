@@ -1,0 +1,64 @@
+# ============================================================
+# 熠觉 · Phosphene v2.0 — 配置文件
+# ============================================================
+
+# ---- AI 模型配置 ----
+ai:
+  # 兼容 OpenAI API 的任何服务商
+  # OpenAI:    https://api.openai.com/v1
+  # DeepSeek:  https://api.deepseek.com/v1
+  # 硅基流动:  https://api.siliconflow.cn/v1
+  # 通义千问:  https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key: "${OPENAI_API_KEY}"        # 优先从环境变量读取
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"              # 或 gpt-4o / qwen-max / deepseek-reasoner
+  temperature: 0.8
+  max_tokens: 4096
+
+  # 如果你的模型支持多格式一次输出，设为 true（省 API 调用费）
+  # false = 每个格式单独调一次 AI（质量更高）
+  single_call: false
+
+# ---- 分类配置 ----
+categories:
+  # 启用哪些分类 (运行 --daemon 时轮询这些分类)
+  active:
+    - tech
+    - finance
+    - business
+    - entertainment
+    - literature
+    - world
+    - zhongyi
+
+# ---- 输出格式 ----
+# 一份素材 → AI 生成多份内容
+output:
+  formats:
+    blog: true          # 📝 博客文章
+    twitter: true       # 🐦 推文串
+    newsletter: true    # 📧 邮件通讯
+    video_script: true  # 🎬 短视频脚本
+    english: true       # 🌍 英文版
+  output_dir: "./docs"
+
+# ---- 发布配置 ----
+publish:
+  mode: "local"         # "local" | "github-pages"
+  github_pages:
+    enabled: false
+    repo_owner: "your-username"
+    repo_name: "your-username.github.io"
+    branch: "main"
+    local_repo_path: ""
+    commit_message: "🤖 AI 自动发布: {title} [{date}]"
+
+# ---- 调度（守护模式） ----
+schedule:
+  interval_hours: 6
+
+# ---- 运行模式 ----
+runtime:
+  concurrency: 2
+  retry_count: 2
+  debug: false

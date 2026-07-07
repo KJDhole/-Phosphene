@@ -1,0 +1,53 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── 环境变量 / 敏感配置 ──
+.env
+.env.*
+config.local.yaml
+*.key
+
+# ── 临时运行时数据 ──
+*.db
+*.log
+_collected*.json
+slugs.json
+temp/
+tmp/
+
+# ── 大型媒体 / 生成产物 ──
+*.mp4
+*.mov
+*.avi
+*.wav
+*.mp3
+hyperframes-video/*.mp4
+hyperframes-video/audio_*.mp3
+hyperframes-video/ponytail/audio_*.mp3
+hyperframes-video/ponytail/*.mp4
+demo_30s.mp4
+
+# ── IDE / 编辑器 ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── 文档构建 ──
+site/
+_build/

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; }
+
+    /* ── 背景层：呼吸渐变 ── */
+    .bg-glow {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 40%, rgba(99,102,241,0.15) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 30% 70%, rgba(168,85,247,0.10) 0%, transparent 60%),
+        linear-gradient(180deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%);
+      animation: bgBreathe 8s ease-in-out infinite alternate;
+    }
+    @keyframes bgBreathe {
+      0%   { filter: brightness(1); }
+      100% { filter: brightness(1.15); }
+    }
+
+    /* ── 浮动粒子 ── */
+    .particle-field {
+      position: absolute; inset: 0;
+      pointer-events: none; overflow: hidden;
+      z-index: 0;
+    }
+    .particle {
+      position: absolute;
+      width: 3px; height: 3px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 50%;
+    }
+    .p1 { left:10%; bottom:0; animation:floatUp 12s linear infinite; }
+    .p2 { left:25%; bottom:0; animation:floatUp 15s linear 2s infinite; }
+    .p3 { left:45%; bottom:0; animation:floatUp 10s linear 4s infinite; }
+    .p4 { left:65%; bottom:0; animation:floatUp 14s linear 1s infinite; }
+    .p5 { left:80%; bottom:0; animation:floatUp 11s linear 3s infinite; }
+    .p6 { left:90%; bottom:0; animation:floatUp 16s linear 5s infinite; }
+    .p7 { left:35%; bottom:0; animation:floatUp 13s linear 6s infinite; }
+    .p8 { left:55%; bottom:0; animation:floatUp 9s linear 7s infinite; width:2px; height:2px; }
+    .p9 { left:70%; bottom:0; animation:floatUp 17s linear 1s infinite; width:4px; height:4px; background:rgba(168,85,247,0.12); }
+    .p10{ left:15%; bottom:0; animation:floatUp 11s linear 8s infinite; width:2px; height:2px; }
+    @keyframes floatUp {
+      0%   { transform: translateY(0) translateX(0); opacity: 0; }
+      10%  { opacity: 0.5; }
+      90%  { opacity: 0.5; }
+      100% { transform: translateY(-110vh) translateX(30px); opacity: 0; }
+    }
+
+    /* ── 扫光线 ── */
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.2), transparent);
+      z-index: 0;
+      animation: scanDown 6s linear infinite;
+    }
+    @keyframes scanDown {
+      0%   { top: -10px; opacity: 0; }
+      20%  { opacity: 1; }
+      80%  { opacity: 1; }
+      100% { top: 100%; opacity: 0; }
+    }
+
+    /* ── 入场动画 ── */
+    @keyframes fadeUp    { 0% { opacity:0; transform:translateY(24px) scale(0.97); } 100% { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes fadeIn    { 0% { opacity:0; } 100% { opacity:1; } }
+    @keyframes scaleIn   { 0% { opacity:0; transform:scale(0.5); } 100% { opacity:1; transform:scale(1); } }
+    @keyframes explode   { 0% { opacity:0; transform:scale(1.5); filter:blur(8px); } 60% { opacity:1; transform:scale(0.95); filter:blur(0); } 100% { opacity:1; transform:scale(1); filter:blur(0); } }
+    @keyframes slideLeft { 0% { opacity:0; transform:translateX(60px); } 100% { opacity:1; transform:translateX(0); } }
+    @keyframes slideRght { 0% { opacity:0; transform:translateX(-60px); } 100% { opacity:1; transform:translateX(0); } }
+    @keyframes popIn     { 0% { opacity:0; transform:scale(1.3); } 70% { transform:scale(0.92); } 100% { opacity:1; transform:scale(1); } }
+    @keyframes glowPulse { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.3); } }
+
+    /* ── 连续动效 ── */
+    @keyframes shimmer {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+    @keyframes softBob {
+      0%,100% { transform: translateY(0); }
+      50%     { transform: translateY(-4px); }
+    }
+    @keyframes breathe {
+      0%,100% { opacity: 0.6; }
+      50%     { opacity: 1; }
+    }
+
+    .shimmer-text {
+      background-size: 200% 100%;
+      animation: shimmer 3s linear infinite;
+    }
+
+    .title {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      position: relative;
+      z-index: 1;
+    }
+    .title-xxl { font-size: 90px; color: #fff; }
+    .title-xl  { font-size: 72px; color: #fff; }
+    .title-lg  { font-size: 56px; color: rgba(255,255,255,0.85); }
+    .title-md  { font-size: 42px; color: rgba(255,255,255,0.65); }
+    .title-sm  { font-size: 34px; color: rgba(255,255,255,0.5); }
+
+    .g1 { background:linear-gradient(135deg,#818cf8,#c084fc,#818cf8); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .g2 { background:linear-gradient(135deg,#a855f7,#f472b6,#a855f7); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .g3 { background:linear-gradient(135deg,#6366f1,#a855f7,#6366f1); background-size:200% 200%; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+    .scene-wrap {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 80px;
+    }
+    .brand {
+      position: absolute; bottom: 40px; left: 0; right: 0;
+      text-align: center; font-family: 'Inter', system-ui, sans-serif;
+      font-size: 18px; color: rgba(255,255,255,0.2);
+      letter-spacing: 0.15em; z-index: 1;
+      animation: breathe 3s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+
+<div data-width="1920" data-height="1080" data-fps="30" data-start="0" data-duration="44.87" data-composition-id="ponytail-main">
+
+  <!-- 背景光晕（呼吸动效） -->
+  <div class="bg-glow"></div>
+
+  <!-- 浮动粒子 -->
+  <div class="particle-field">
+    <div class="particle p1"></div><div class="particle p2"></div>
+    <div class="particle p3"></div><div class="particle p4"></div>
+    <div class="particle p5"></div><div class="particle p6"></div>
+    <div class="particle p7"></div><div class="particle p8"></div>
+    <div class="particle p9"></div><div class="particle p10"></div>
+  </div>
+
+  <!-- 扫光线（持续扫描） -->
+  <div class="scan-line"></div>
+
+  <!-- Audio -->
+  <audio id="a0" src="audio_00.mp3" data-start="0"      data-duration="2.90"></audio>
+  <audio id="a1" src="audio_01.mp3" data-start="2.90"   data-duration="5.71"></audio>
+  <audio id="a2" src="audio_02.mp3" data-start="8.61"   data-duration="5.45"></audio>
+  <audio id="a3" src="audio_03.mp3" data-start="14.06"  data-duration="7.68"></audio>
+  <audio id="a4" src="audio_04.mp3" data-start="21.74"  data-duration="3.14"></audio>
+  <audio id="a5" src="audio_05.mp3" data-start="24.88"  data-duration="6.89"></audio>
+  <audio id="a6" src="audio_06.mp3" data-start="31.77"  data-duration="4.87"></audio>
+  <audio id="a7" src="audio_07.mp3" data-start="36.64"  data-duration="8.23"></audio>
+
+  <!-- ══ S0: GitHub 上突然炸了一个项目 ══ -->
+  <div id="s0" class="clip scene-wrap" data-start="0" data-duration="2.90">
+    <div class="title title-xxl" style="animation: explode 0.6s ease-out 0.0s both;">
+      <span class="g1 shimmer-text">GitHub</span> 上突然
+    </div>
+    <div class="title title-xxl" style="animation: explode 0.6s ease-out 0.25s both;">
+      炸了一个项目
+    </div>
+  </div>
+
+  <!-- ══ S1: 18天 · 76,264星 · 它叫 Ponytail ══ -->
+  <div id="s1" class="clip scene-wrap" data-start="2.90" data-duration="5.71">
+    <div style="display:flex; gap:30px; align-items:center;">
+      <div style="text-align:center; animation: slideRght 0.5s ease-out 0.0s both;">
+        <div class="title g3 shimmer-text" style="font-size:90px;font-weight:800;line-height:1;">18</div>
+        <div style="font-size:26px;color:rgba(255,255,255,0.5);margin-top:2px;">天</div>
+      </div>
+      <div class="title" style="font-size:48px;color:rgba(255,255,255,0.1);font-weight:200;animation:fadeIn 0.3s ease-out 0.2s both;">·</div>
+      <div style="text-align:center; animation: slideLeft 0.5s ease-out 0.0s both;">
+        <div class="title g1 shimmer-text" style="font-size:90px;font-weight:800;line-height:1;">76,264</div>
+        <div style="font-size:26px;color:rgba(255,255,255,0.5);margin-top:2px;">⭐ 颗星</div>
+      </div>
+    </div>
+    <div class="title title-lg" style="margin-top:24px; animation: popIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.3s both; animation-iteration-count:1;">
+      它叫 <span class="g1 shimmer-text">Ponytail</span>
+    </div>
+  </div>
+
+  <!-- ══ S2: 先思考 · 再判断 · 最后才写代码 ══ -->
+  <div id="s2" class="clip scene-wrap" data-start="8.61" data-duration="5.45">
+    <div class="title title-xl" style="animation: fadeUp 0.4s ease-out 0.0s both;">
+      它让 AI 编程代理
+    </div>
+    <div style="margin-top:10px; display:flex; gap:20px; align-items:center;">
+      <span class="title title-xl g1 shimmer-text" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.1s both;">先思考</span>
+      <span class="title title-xl" style="color:rgba(255,255,255,0.2); animation:fadeIn 0.3s 0.3s both;">·</span>
+      <span class="title title-xl g2 shimmer-text" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.35s both;">再判断</span>
+      <span class="title title-xl" style="color:rgba(255,255,255,0.2); animation:fadeIn 0.3s 0.55s both;">·</span>
+      <span class="title title-xl" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.6s both; animation-iteration-count:1;">最后才写代码</span>
+    </div>
+  </div>
+
+  <!-- ══ S3: 80%想清楚 → 20%写代码 ══ -->
+  <div id="s3" class="clip scene-wrap" data-start="14.06" data-duration="7.68">
+    <div class="title title-lg" style="animation: fadeUp 0.5s ease-out 0.0s both;">
+      像一个 <span class="g1 shimmer-text">老油条高级工程师</span>
+    </div>
+    <div style="display:flex; gap:40px; margin-top:24px;">
+      <div style="text-align:center; animation: slideRght 0.5s ease-out 0.2s both;">
+        <div class="title g1 shimmer-text" style="font-size:64px;font-weight:800;line-height:1;">80%</div>
+        <div class="title title-sm" style="margin-top:4px;">时间想清楚</div>
+      </div>
+      <div class="title" style="font-size:40px;color:rgba(255,255,255,0.15);font-weight:200;align-self:center;animation:fadeIn 0.3s 0.4s both; animation: fadeIn 0.3s 0.4s both, softBob 2s ease-in-out 0.8s infinite;">→</div>
+      <div style="text-align:center; animation: slideLeft 0.5s ease-out 0.4s both;">
+        <div class="title g2 shimmer-text" style="font-size:64px;font-weight:800;line-height:1;">20%</div>
+        <div class="title title-sm" style="margin-top:4px;">时间写代码</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ S4: 最好的代码是你没写的 ══ -->
+  <div id="s4" class="clip scene-wrap" data-start="21.74" data-duration="3.14">
+    <div class="title title-xl" style="animation: fadeUp 0.4s ease-out 0.0s both;">
+      最好的代码
+    </div>
+    <div class="title title-xl" style="animation: fadeUp 0.4s ease-out 0.2s both;">
+      是 <span class="g2 shimmer-text">你没写</span> 的代码
+    </div>
+    <div style="margin-top:14px; font-size:22px; color:rgba(255,255,255,0.25); font-style:italic; animation:fadeIn 0.8s ease-out 0.6s both;">
+      "The best code is the code you never write."
+    </div>
+  </div>
+
+  <!-- ══ S5: 不是孤例 · 6 个同榜（加过渡承接）══ -->
+  <div id="s5" class="clip scene-wrap" data-start="24.88" data-duration="6.89">
+    <div class="title title-md" style="color:rgba(255,255,255,0.4); animation: fadeUp 0.4s ease-out 0.0s both; animation-iteration-count:1;">
+      而且 ...
+    </div>
+    <div class="title title-lg" style="margin-top:12px; animation: scaleIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.2s both; animation-iteration-count:1;">
+      <span class="g1">不是孤例</span>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:20px; flex-wrap:wrap; justify-content:center;">
+      <span class="title title-md" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.3s both; animation-iteration-count:1; color:#818cf8;">improve</span>
+      <span class="title title-md" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.4s both; animation-iteration-count:1; color:#c084fc;">openwiki</span>
+      <span class="title title-md" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.5s both; animation-iteration-count:1; color:#a78bfa;">omnigent</span>
+      <span class="title title-md" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.6s both; animation-iteration-count:1; color:#f472b6;">DeepSpec</span>
+      <span class="title title-md" style="animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.7s both; animation-iteration-count:1; color:#fb923c;">token-diet</span>
+    </div>
+    <div class="title title-sm" style="margin-top:20px; animation:fadeUp 0.5s ease-out 0.9s both;">
+      6 个项目 · 同一张 <span class="g1 shimmer-text">月榜</span>
+    </div>
+  </div>
+
+  <!-- ══ S6: 思考框架→审计→文档→编排→省钱工具 ══ -->
+  <div id="s6" class="clip scene-wrap" data-start="31.77" data-duration="4.87">
+    <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; justify-content:center;">
+      <span class="title title-md g1 shimmer-text" style="animation:fadeUp 0.3s 0.0s both;">思考框架</span>
+      <span class="title title-md" style="color:rgba(255,255,255,0.15); animation:fadeIn 0.2s 0.2s both;">→</span>
+      <span class="title title-md" style="animation:fadeUp 0.3s 0.25s both;">审计</span>
+      <span class="title title-md" style="color:rgba(255,255,255,0.15); animation:fadeIn 0.2s 0.4s both;">→</span>
+      <span class="title title-md" style="animation:fadeUp 0.3s 0.45s both;">文档</span>
+      <span class="title title-md" style="color:rgba(255,255,255,0.15); animation:fadeIn 0.2s 0.6s both;">→</span>
+      <span class="title title-md" style="animation:fadeUp 0.3s 0.65s both;">编排</span>
+      <span class="title title-md" style="color:rgba(255,255,255,0.15); animation:fadeIn 0.2s 0.8s both;">→</span>
+      <span class="title title-md g2 shimmer-text" style="animation:fadeUp 0.3s 0.85s both;">省钱工具</span>
+    </div>
+    <div class="title title-lg" style="margin-top:20px; animation:scaleIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.0s both; animation-iteration-count:1;">
+      整个生态已经成型
+    </div>
+  </div>
+
+  <!-- ══ S7: AI编程代理 → 开发者的基础设施 ══ -->
+  <div id="s7" class="clip scene-wrap" data-start="36.64" data-duration="8.23">
+    <div class="title title-xl" style="font-size:64px; animation: fadeUp 0.5s ease-out 0.0s both;">
+      AI <span class="g1 shimmer-text">编程代理</span>
+    </div>
+    <div class="title title-lg" style="font-size:48px; animation: fadeUp 0.5s ease-out 0.2s both;">
+      正在变成
+    </div>
+    <div class="title title-xxl" style="font-size:80px; margin-top:6px; animation: scaleIn 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.5s both; animation-iteration-count:1;">
+      <span class="g3 shimmer-text" style="animation:glowPulse 2.5s ease-in-out 1.2s infinite;">开发者的基础设施</span>
+    </div>
+    <div class="title title-sm" style="margin-top:18px; color:rgba(255,255,255,0.3); animation: fadeIn 0.8s ease-out 1.5s both;">
+      2026 — 正在发生
+    </div>
+    <div class="brand" style="animation: fadeIn 1s ease-out 2.5s both;">AI 热点观察</div>
+  </div>
+
+</div>
+
+<script>
+  window.__timelines = window.__timelines || {};
+  window.__timelines['ponytail-main'] = [];
+</script>
+
+</body>
+</html>
