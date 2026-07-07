@@ -48,6 +48,7 @@ demo_30s.mp4
 Thumbs.db
 Desktop.ini
 
-# ── 文档构建 ──
+# ── 项目目录 / 子模块 ──
+remotion-video/
 site/
 _build/
