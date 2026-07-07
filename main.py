@@ -160,12 +160,18 @@ def cmd_init():
     key = os.getenv("OPENAI_API_KEY", "")
     if not key:
         key = input("请输入你的 API Key (OpenAI/DeepSeek/硅基流动): ").strip()
-        if key:
-            os.environ["OPENAI_API_KEY"] = key
 
     if not key:
         CONSOLE.print("[red]❌ 必须设置 API Key 才能运行[/]")
         return
+
+    # 写入临时密钥文件（--serve 启动时会读取）
+    key_file = ROOT / ".api_key"
+    key_file.write_text(key.strip(), encoding="utf-8")
+    CONSOLE.print(f"  [dim]🔑 密钥已保存至 {key_file}[/]")
+
+    # 设到环境变量供本次测试连接用
+    os.environ["OPENAI_API_KEY"] = key
 
     CONSOLE.print("\n[cyan]🔌 测试 AI API 连接...[/]")
     config = load_config()
@@ -185,7 +191,7 @@ def cmd_init():
         CONSOLE.print(f"  [red]❌ 连接失败: {e}[/]")
         return
 
-    CONSOLE.print(f"\n[bold green]✅ 初始化完成! 运行 python main.py --category tech 即可开始[/]")
+    CONSOLE.print(f"\n[bold green]✅ 初始化完成! 运行 python main.py --serve 启动 Web 管理界面[/]")
 
 
 def cmd_deploy():
@@ -241,12 +247,31 @@ def main():
     parser.add_argument("--category", type=str, default="tech", help="指定分类 (默认: tech)")
     parser.add_argument("--list-categories", action="store_true", help="列出所有可用分类")
     parser.add_argument("--debug", action="store_true", help="调试模式")
+    parser.add_argument("--serve", action="store_true", help="启动 Web 管理界面")
 
     args = parser.parse_args()
 
     # 初始化注册表（加载所有分类）
     from core.registry import discover_categories, list_categories as get_cat_info
     discover_categories()
+
+    if args.serve:
+        # 读取 --init 保存的临时密钥
+        key_file = ROOT / ".api_key"
+        if key_file.exists():
+            key = key_file.read_text(encoding="utf-8").strip()
+            if key:
+                os.environ["OPENAI_API_KEY"] = key
+
+        import atexit
+        atexit.register(lambda: key_file.unlink(missing_ok=True))
+
+        from web.server import create_app
+        import uvicorn
+        app = create_app(static_dir=ROOT / "web" / "static")
+        CONSOLE.print(f"[bold green]🌐 Web UI 启动: http://localhost:5000[/]")
+        uvicorn.run(app, host="0.0.0.0", port=5000, log_level="info")
+        return
 
     if args.list_categories:
         cats = get_cat_info()

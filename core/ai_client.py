@@ -40,7 +40,7 @@ class AIClient:
         self.debug = config["runtime"].get("debug", False)
         self.concurrency = config["runtime"].get("concurrency", 2)
 
-    def call(self, system: str, user: str, temp: Optional[float] = None,
+    def call(self, system: str, user: str, temperature: Optional[float] = None,
              max_tokens: Optional[int] = None) -> str:
         """调用 AI 模型"""
         kwargs = dict(
@@ -49,7 +49,7 @@ class AIClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            temperature=temp if temp is not None else self.temperature,
+            temperature=temperature if temperature is not None else self.temperature,
             max_tokens=max_tokens if max_tokens is not None else self.max_tokens,
         )
         if self.debug:
@@ -152,7 +152,7 @@ class AIClient:
 
 ===FORMAT:ENGLISH===
 （英文版：地道英语，标题吸引英文读者，不要直译）"""
-        raw = self.call(system, user, temperature=0.7, max_tokens=6000)
+        raw = self.call(system, user, temp=0.7, max_tokens=6000)
         return self._parse_formats(raw)
 
     @staticmethod

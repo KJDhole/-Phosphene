@@ -23,6 +23,7 @@ _collected*.json
 slugs.json
 temp/
 tmp/
+.api_key
 
 # ── 大型媒体 / 生成产物 ──
 *.mp4
@@ -52,3 +53,6 @@ Desktop.ini
 remotion-video/
 site/
 _build/
+frontend/node_modules/
+frontend/dist/
+frontend/node_modules
