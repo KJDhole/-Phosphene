@@ -1,19 +1,23 @@
-import { useState } from 'react';
-import { Select, Space, Input, Typography, Empty } from 'antd';
+import { Select, Space, Input, Typography, Empty, Alert } from 'antd';
 import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { fetchHistory } from '../api/client';
 import ArticleCard from '../components/ArticleCard';
+import { useHistory } from '../stores/HistoryContext';
 
 const { Title } = Typography;
 
 export default function History() {
-  const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
-  const [searchText, setSearchText] = useState('');
+  const { categoryFilter, setCategoryFilter, searchText, setSearchText } = useHistory();
 
-  const { data: articles = [], isLoading } = useQuery({
+  const { data: articles = [], isLoading, isError } = useQuery({
     queryKey: ['history', categoryFilter],
     queryFn: () => fetchHistory(categoryFilter),
+    refetchInterval: (query) => {
+      // 列表为空时每 5 秒轮询，方便文章生成后自动刷新
+      if (query.state.data && query.state.data.length === 0) return 5000;
+      return false;
+    },
   });
 
   const filtered = searchText
@@ -57,7 +61,15 @@ export default function History() {
         />
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <Alert
+          type="warning"
+          message="加载失败"
+          description="无法获取历史文章列表，请检查后端是否运行正常。"
+          showIcon
+          style={{ borderRadius: 12 }}
+        />
+      ) : isLoading ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[1, 2, 3].map((i) => (
             <div

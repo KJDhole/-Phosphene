@@ -1,55 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
 import { Card, Space, Divider, Typography } from 'antd';
 import { ThunderboltOutlined } from '@ant-design/icons';
 import CategoryPicker from '../components/CategoryPicker';
 import RunControls from '../components/RunControls';
-import LogViewer, { type LogEntry } from '../components/LogViewer';
-import { createLogWebSocket, getRunStatus } from '../api/client';
+import LogViewer from '../components/LogViewer';
+import { useDashboard } from '../stores/DashboardContext';
 
 const { Title } = Typography;
 
 export default function Dashboard() {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [ws, setWs] = useState<WebSocket | null>(null);
-
-  const connectWs = useCallback(() => {
-    const socket = createLogWebSocket(
-      (data) => {
-        setLogs((prev) => [...prev, {
-          timestamp: data.timestamp,
-          category: data.category,
-          level: data.level,
-          message: data.message,
-          progress: data.progress,
-        }]);
-      },
-      (data) => {
-        setIsRunning(data.running);
-      },
-      (data) => {
-        setIsRunning(false);
-      },
-    );
-    setWs(socket);
-    return socket;
-  }, []);
-
-  useEffect(() => {
-    getRunStatus().then((status) => setIsRunning(status.running));
-    const socket = connectWs();
-    return () => {
-      socket.close();
-    };
-  }, [connectWs]);
-
-  useEffect(() => {
-    if (isRunning && ws && ws.readyState !== WebSocket.OPEN) {
-      const socket = connectWs();
-      setWs(socket);
-    }
-  }, [isRunning, ws, connectWs]);
+  const { selected, setSelected, isRunning, setIsRunning, logs, clearLogs } = useDashboard();
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
@@ -69,7 +28,7 @@ export default function Dashboard() {
           selected={selected}
           isRunning={isRunning}
           onRunStart={() => {
-            setLogs([]);
+            clearLogs();
             setIsRunning(true);
           }}
         />
@@ -81,7 +40,7 @@ export default function Dashboard() {
       >
         <LogViewer
           logs={logs}
-          onClear={() => setLogs([])}
+          onClear={clearLogs}
         />
       </Card>
     </Space>

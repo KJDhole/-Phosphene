@@ -102,7 +102,8 @@ async def ws_logs(websocket: WebSocket):
             _ws_connections.remove(websocket)
 
 
-async def _run_single_category(category_name: str, config: dict, debug: bool = False):
+async def _run_single_category(category_name: str, config: dict, debug: bool = False,
+                               use_scrapling: bool = True):
     """运行单个分类流水线（异步版）"""
     global _running, _current_category, _stop_flag
 
@@ -135,8 +136,10 @@ async def _run_single_category(category_name: str, config: dict, debug: bool = F
         await broadcast_log(category_name, "info", f"🚀 开始: {cat_info.display_name}", 0.05)
 
         # ── 采集阶段 ──
-        await broadcast_log(category_name, "info", f"📡 开始采集 {len(cat.sources)} 个信源...", 0.1)
-        raw_data = await cat.collect(debug=debug)
+        scrapling_label = "Scrapling浏览器" if use_scrapling else "HTTP直连"
+        await broadcast_log(category_name, "info",
+                            f"📡 开始采集 {len(cat.sources)} 个信源 (模式: {scrapling_label})...", 0.1)
+        raw_data = await cat.collect(debug=debug, use_scrapling=use_scrapling)
         success_count = sum(1 for v in raw_data.values() if v and not v.startswith('[采集失败'))
         fail_count = len(raw_data) - success_count
         await broadcast_log(category_name, "success",
@@ -153,7 +156,7 @@ async def _run_single_category(category_name: str, config: dict, debug: bool = F
         system_prompt, user_prompt = cat.get_prompts(raw_data)
 
         t0 = time.time()
-        blog = ai_client.generate_blog(system_prompt, user_prompt)
+        blog = await asyncio.to_thread(ai_client.generate_blog, system_prompt, user_prompt)
         elapsed_ai = time.time() - t0
 
         word_count = len(blog.replace(" ", "").replace("\n", ""))
@@ -173,18 +176,20 @@ async def _run_single_category(category_name: str, config: dict, debug: bool = F
         if enabled_formats:
             await broadcast_log(category_name, "info",
                                 f"🔄 并行生成 {len(enabled_formats)} 种格式...", 0.55)
-            from concurrent.futures import ThreadPoolExecutor, as_completed
+            loop = asyncio.get_event_loop()
+            from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=config["runtime"].get("concurrency", 2)) as pool:
-                fut_map = {
-                    pool.submit(ai_client.generate_format, fmt, blog, cat_info.display_name): fmt
-                    for fmt in enabled_formats
-                }
-                for fut in as_completed(fut_map):
-                    fmt = fut_map[fut]
+                tasks = []
+                for fmt in enabled_formats:
+                    task = loop.run_in_executor(
+                        pool, ai_client.generate_format, fmt, blog, cat_info.display_name
+                    )
+                    tasks.append((fmt, task))
+                for fmt, task in tasks:
                     label = fmt_labels.get(fmt, fmt)
                     try:
                         t1 = time.time()
-                        content = fut.result()
+                        content = await task
                         elapsed_fmt = time.time() - t1
                         extra_formats[fmt] = content
                         await broadcast_log(category_name, "success",
@@ -224,18 +229,7 @@ async def _run_single_category(category_name: str, config: dict, debug: bool = F
             _current_category = None
 
 
-@router.post("/run/{category}")
-async def run_category(category: str, debug: bool = False):
-    global _running, _stop_flag
-    _stop_flag = False
-    if _running:
-        return {"status": "error", "message": "已有任务在运行"}
-    _running = True
-    config = load_config()
-    if debug:
-        config["runtime"]["debug"] = True
-    asyncio.create_task(_run_single_category(category, config, debug))
-    return {"status": "started", "category": category}
+# ── 静态路由放在前面，避免被 /run/{category} 吞掉 ──
 
 
 @router.post("/run/batch")
@@ -254,7 +248,7 @@ async def run_batch(req: RunRequest):
         for cat in req.categories:
             if _stop_flag:
                 break
-            await _run_single_category(cat, config, req.debug)
+            await _run_single_category(cat, config, req.debug, req.use_scrapling)
         _running = False
 
     asyncio.create_task(_batch_run())
@@ -272,3 +266,17 @@ async def stop_run():
 @router.get("/run/status", response_model=RunStatus)
 async def get_run_status():
     return RunStatus(running=_running, current_category=_current_category)
+
+
+@router.post("/run/{category}")
+async def run_category(category: str, debug: bool = False, use_scrapling: bool = True):
+    global _running, _stop_flag
+    _stop_flag = False
+    if _running:
+        return {"status": "error", "message": "已有任务在运行"}
+    _running = True
+    config = load_config()
+    if debug:
+        config["runtime"]["debug"] = True
+    asyncio.create_task(_run_single_category(category, config, debug, use_scrapling))
+    return {"status": "started", "category": category}

@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard';
 import History from './pages/History';
 import ArticleDetail from './pages/ArticleDetail';
 import VideoEditor from './pages/VideoEditor';
+import { DashboardProvider } from './stores/DashboardContext';
+import { HistoryProvider } from './stores/HistoryContext';
 
 const queryClient = new QueryClient();
 
@@ -54,16 +56,20 @@ export default function App() {
   return (
     <ConfigProvider locale={zhCN} theme={phospheneTheme}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/history/:id" element={<ArticleDetail />} />
-              <Route path="/video/:id" element={<VideoEditor />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <DashboardProvider>
+          <HistoryProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/history" element={<History />} />
+                  <Route path="/history/:id" element={<ArticleDetail />} />
+                  <Route path="/video/:id" element={<VideoEditor />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </HistoryProvider>
+        </DashboardProvider>
       </QueryClientProvider>
     </ConfigProvider>
   );

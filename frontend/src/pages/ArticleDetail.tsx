@@ -5,6 +5,7 @@ import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/i
 import { useQuery } from '@tanstack/react-query';
 import { fetchArticleDetail } from '../api/client';
 import FormatTabs from '../components/FormatTabs';
+import ArticleBottomBar from '../components/ArticleBottomBar';
 
 const { Title } = Typography;
 
@@ -61,7 +62,7 @@ export default function ArticleDetail() {
   }
 
   return (
-    <div>
+    <div style={{ paddingBottom: 72 }}>
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -118,6 +119,13 @@ export default function ArticleDetail() {
         formats={article.formats}
         activeKey={activeFormat}
         onChange={setActiveFormat}
+      />
+
+      {/* 浮动底部操作栏：滚动到底部时不用回到顶部即可返回 */}
+      <ArticleBottomBar
+        title={article.title}
+        onCopy={handleCopy}
+        onDownload={handleDownload}
       />
     </div>
   );
