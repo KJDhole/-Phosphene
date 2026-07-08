@@ -39,12 +39,14 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.data;
 }
 
-export async function runCategory(category: string): Promise<void> {
-  await api.post(`/run/${category}`, null, { params: { debug: false } });
+export async function runCategory(category: string, use_scrapling: boolean = true): Promise<void> {
+  await api.post(`/run/${category}`, null, {
+    params: { debug: false, use_scrapling },
+  });
 }
 
-export async function runBatch(categories: string[]): Promise<void> {
-  await api.post('/run/batch', { categories });
+export async function runBatch(categories: string[], use_scrapling: boolean = true): Promise<void> {
+  await api.post('/run/batch', { categories, use_scrapling });
 }
 
 export async function stopRun(): Promise<void> {
@@ -122,4 +124,31 @@ export function createLogWebSocket(
   };
 
   return ws;
+}
+
+export interface VideoStatusData {
+  slug: string;
+  status: 'pending' | 'generating' | 'done' | 'failed';
+  progress: number;
+  video_url: string | null;
+  error: string | null;
+}
+
+export async function generateVideo(slug: string, category: string): Promise<VideoStatusData> {
+  const res = await api.post<VideoStatusData>(`/video/generate/${slug}`, null, {
+    params: { category },
+  });
+  return res.data;
+}
+
+export async function getVideoStatus(slug: string, category?: string): Promise<VideoStatusData> {
+  const res = await api.get<VideoStatusData>(`/video/status/${slug}`, {
+    params: category ? { category } : {},
+  });
+  return res.data;
+}
+
+export function getVideoUrl(slug: string, category?: string): string {
+  const params = category ? `?category=${category}` : '';
+  return `/api/video/${slug}${params}`;
 }
