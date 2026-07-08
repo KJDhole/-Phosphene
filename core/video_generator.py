@@ -44,19 +44,32 @@ def parse_script(script_text: str) -> dict:
     if m:
         category = m.group(1).strip()
 
-    # 解析场景
+    # 解析场景 — 先尝试新格式
+    scenes = _parse_structured(script_text)
+
+    # 如果新格式解析不到场景，回退到旧格式
+    if not scenes:
+        scenes = _parse_legacy(script_text)
+
+    return {
+        "title": title,
+        "category": category,
+        "scenes": scenes,
+    }
+
+
+def _parse_structured(script_text: str) -> list:
+    """解析新格式：## S0 | xxx | explode | a1"""
+    scenes = []
     current_scene = None
     current_lines = []
 
     for line in script_text.split("\n"):
-        # 匹配 ## S0 | xxx | explode | a1
         m = re.match(r'^##\s+S(\d+)\s*\|\s*(.+?)\s*\|\s*(\w+)\s*\|\s*(\w+)', line)
         if m:
-            # 保存上一个场景
             if current_scene is not None and current_lines:
                 current_scene["lines"] = current_lines
                 scenes.append(current_scene)
-
             current_scene = {
                 "id": int(m.group(1)),
                 "name": m.group(2).strip(),
@@ -65,8 +78,6 @@ def parse_script(script_text: str) -> dict:
             }
             current_lines = []
             continue
-
-        # 匹配文案行
         if current_scene is not None:
             m2 = re.match(r'^文案[：:]\s*(.+)', line)
             if m2:
@@ -74,16 +85,156 @@ def parse_script(script_text: str) -> dict:
                 if text:
                     current_lines.append(text)
 
-    # 保存最后一个场景
     if current_scene is not None and current_lines:
         current_scene["lines"] = current_lines
         scenes.append(current_scene)
+    return scenes
 
-    return {
-        "title": title,
-        "category": category,
-        "scenes": scenes,
-    }
+
+# 旧格式 → 视觉类型映射（按场景位置）
+_DEFAULT_VISUAL_TYPES = [
+    "explode", "number", "text", "pop", "text", "tag", "chain", "ending"
+]
+
+
+def _parse_legacy(script_text: str) -> list:
+    """解析旧格式（长文分镜脚本）"""
+    import re as _re
+
+    lines = script_text.split("\n")
+
+    # 找到第一个 #### 或 --- 作为实际内容的开始
+    content_start = 0
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("####") or stripped.startswith("---"):
+            content_start = idx
+            break
+        # 跳过 AI 开场白（"好的，没问题！" 行）
+        if re.match(r'^(好的|没问题|当然|首先)', stripped):
+            content_start = idx + 1
+
+    lines = lines[content_start:]
+
+    # 按 #### 标题、--- 分隔线、**制作备注** 分节
+    sections = []
+    current = []
+    section_headers = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("####") or stripped.startswith("---"):
+            if current:
+                sections.append((section_headers[-1] if section_headers else "", "\n".join(current)))
+                current = []
+            # 提取标题（如 "#### 【0:00-0:05】开场钩子"）
+            header = _re.sub(r'^#{1,4}\s*|【[^】]+】', '', stripped).strip()
+            section_headers.append(header)
+        elif stripped and not stripped.startswith("**制作"):
+            current.append(stripped)
+
+    if current:
+        sections.append((section_headers[-1] if section_headers else "", "\n".join(current)))
+
+    # 跳过纯元信息/备注节
+    skip_sec_patterns = [
+        r'总时长', r'风格', r'目标', r'适用平台',
+        r'脚本设计思路', r'制作备注', r'^[0-9.]+$',
+        r'以下是完整', r'完整的脚本方案',
+    ]
+
+    # 跳过 header 为 --- 或空且 body 短于 15 字的节
+    def _is_skip_section(header: str, body: str) -> bool:
+        if len(body.strip()) < 15:
+            return True
+        if header in ('---', '') and not _re.search(r'(?:口播|文案)', body):
+            return True
+        for pat in skip_sec_patterns:
+            if _re.search(pat, header + body[:60]):
+                return True
+        return False
+
+    def _clean_text(raw: str) -> str:
+        """去除 markdown 标记和舞台指示，返回纯文本"""
+        text = _re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', raw)          # **加粗**
+        text = _re.sub(r'^\s*\*\s+', '', text)                         # 行首 *
+        text = _re.sub(r'^#{1,4}\s+', '', text)                        # ### 标记
+        text = _re.sub(r'【[\d:→\-\[\]\.]+】', '', text)               # 【0:00-0:05】
+        text = _re.sub(r'^\*{0,2}(?:口播|画面|文案|字幕)\*{0,2}[：:（(]', '', text)  # 口播：
+        text = _re.sub(r'[（(](?:画面|口播|字幕|建议|备注|数据)[）)]', '', text)       # (画面)
+        text = _re.sub(r'\s{2,}', ' ', text)                           # 多余空白
+        text = text.strip().strip('，。！？；、：').strip()
+        return text
+
+    scenes = []
+    for i, (header, body) in enumerate(sections[:10]):
+        if _is_skip_section(header, body):
+            continue
+        if len(scenes) >= 8:
+            break
+
+        # 提取文本：优先找口播行
+        text = ""
+        body_lines = body.split("\n")
+        for li, line in enumerate(body_lines):
+            # 匹配 **口播：**、**（口播）** 等多种格式
+            m = _re.match(r'.*?口播.*?(?:[：:]\s*(.+))?', line)
+            if m:
+                if m.group(1):
+                    # 有冒号：**口播：** 文字
+                    candidate = _clean_text(m.group(1))
+                    if len(candidate) > 5:
+                        text = candidate
+                        break
+                else:
+                    # 无冒号：**（口播）**，文字在下一行
+                    if li + 1 < len(body_lines):
+                        next_line = body_lines[li + 1].strip().strip('"「」""')
+                        if next_line and len(next_line) > 5:
+                            text = _clean_text(next_line)
+                            break
+
+        if not text:
+            # 找第一个有意义的句子
+            for line in body.split("\n"):
+                if (len(line) > 8
+                        and not _re.match(r'^\s*#|\-\-\-|\*{2}$|【', line)
+                        and '画面' not in line[:8]
+                        and '制作' not in line[:8]):
+                    candidate = _clean_text(line)
+                    if len(candidate) > 5:
+                        text = candidate
+                        break
+
+        if text:
+            parts = _re.split(r'[，。！？；、]', text)
+            lines_out = []
+            for p in parts:
+                p = p.strip(' "\'「」""（）()\u3000')
+                if not p or len(p) < 2:
+                    continue
+                # CJK-safe 分行：每行 ≤15 中文字符
+                while len(p) > 15:
+                    # 在标点或空格处分，否则硬切
+                    split_at = max(p.rfind('，', 0, 15), p.rfind(' ', 0, 15),
+                                   p.rfind('、', 0, 15), 12)
+                    if split_at <= 0 or split_at > 15:
+                        split_at = 15
+                    lines_out.append(p[:split_at])
+                    p = p[split_at:]
+                if p:
+                    lines_out.append(p)
+
+            if lines_out:
+                scenes.append({
+                    "id": len(scenes),
+                    "name": header or f"场景{len(scenes)}",
+                    "visualType": _DEFAULT_VISUAL_TYPES[len(scenes)] if len(scenes) < len(_DEFAULT_VISUAL_TYPES) else "text",
+                    "gradient": "a1",
+                    "lines": lines_out[:3],
+                })
+
+    return scenes
 
 
 def generate_tts(scenes: list, slug: str, work_dir: Path) -> tuple:
