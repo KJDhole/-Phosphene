@@ -46,7 +46,8 @@ def load_config() -> dict:
     return config
 
 
-def run_once_for_category(category_name: str, debug: bool = False) -> bool:
+def run_once_for_category(category_name: str, debug: bool = False,
+                          use_scrapling: bool = True) -> bool:
     """执行指定分类的一次完整流水线"""
     from core.ai_client import AIClient
     from core.output import OutputManager
@@ -79,7 +80,9 @@ def run_once_for_category(category_name: str, debug: bool = False) -> bool:
 
     try:
         # ── Step 1: 采集 ──
-        raw_data = asyncio.run(cat.collect(debug=debug))
+        scrapling_label = "Scrapling浏览器" if use_scrapling else "HTTP直连"
+        CONSOLE.print(f"\n[bold cyan]📡 采集数据... (模式: {scrapling_label})[/]")
+        raw_data = asyncio.run(cat.collect(debug=debug, use_scrapling=use_scrapling))
 
         # ── Step 2: AI 生成博客 ──
         CONSOLE.print(f"\n[bold cyan]🧠 生成 {cat_info.display_name} 文章...[/]")
@@ -226,11 +229,12 @@ def cmd_deploy():
     CONSOLE.print(f"\n[bold green]✅ 部署完成![/]")
 
 
-def cmd_daemon():
+def cmd_daemon(use_scrapling: bool = True):
     """守护模式"""
     from core.scheduler import Scheduler
 
     config = load_config()
+    config["runtime"]["scrapling"] = use_scrapling
     sched = Scheduler(config)
     sched.run_forever()
 
@@ -247,7 +251,11 @@ def main():
     parser.add_argument("--category", type=str, default="tech", help="指定分类 (默认: tech)")
     parser.add_argument("--list-categories", action="store_true", help="列出所有可用分类")
     parser.add_argument("--debug", action="store_true", help="调试模式")
+    parser.add_argument("--scrapling", action=argparse.BooleanOptionalAction,
+                        default=True, help="是否启用 Scrapling 浏览器采集 (默认: 启用)")
     parser.add_argument("--serve", action="store_true", help="启动 Web 管理界面")
+    parser.add_argument("--generate-video", nargs=2, metavar=("CATEGORY", "SLUG"),
+                        help="为指定文章生成 Remotion 视频")
 
     args = parser.parse_args()
 
@@ -288,9 +296,14 @@ def main():
     elif args.daemon:
         config = load_config()
         config["categories"] = {"active": list_categories()}
-        cmd_daemon()
+        cmd_daemon(use_scrapling=args.scrapling)
+    elif args.generate_video:
+        category, slug = args.generate_video
+        from core.video_generator import generate_video
+        result = generate_video(category, slug, ROOT / "docs" / "posts")
+        CONSOLE.print(f"[green]✅ 视频已生成: {result}[/]")
     else:
-        run_once_for_category(args.category, debug=args.debug)
+        run_once_for_category(args.category, debug=args.debug, use_scrapling=args.scrapling)
 
 
 if __name__ == "__main__":

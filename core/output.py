@@ -105,7 +105,8 @@ class OutputManager:
             f"  - 🐦 [推文串](posts/{self._rel_path('twitter.md')})"
             f" · 📧 [通讯](posts/{self._rel_path('newsletter.md')})"
             f" · 🎬 [脚本](posts/{self._rel_path('video_script.md')})"
-            f" · 🌍 [English](posts/{self._rel_path('english.md')})",
+            f" · 🌍 [English](posts/{self._rel_path('english.md')})"
+            f" · 🎥 [视频](posts/{self._rel_path('video.mp4')})",
         ]
 
         # 构建首页内容
