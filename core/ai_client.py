@@ -76,6 +76,62 @@ class AIClient:
         """生成主博客文章"""
         return self.call(system_prompt, user_prompt)
 
+    CATEGORY_STYLES = {
+        "技术趋势": {"vibe": "科技感、紫蓝渐变、数字爆炸", "gradient": "a1"},
+        "金融财经": {"vibe": "专业财经、金橙渐变、K线数据", "gradient": "a2"},
+        "商业": {"vibe": "商业简洁、蓝青渐变、趋势结构", "gradient": "a3"},
+        "娱乐文化": {"vibe": "活泼炫彩、粉紫渐变、流行感", "gradient": "a4"},
+        "文学艺术": {"vibe": "文艺优雅、暖棕渐变、文字意境", "gradient": "a5"},
+        "国际新闻": {"vibe": "新闻权威、深蓝渐变、数据格局", "gradient": "a6"},
+        "中医中药": {"vibe": "传统自然、翠绿渐变、典雅智慧", "gradient": "a7"},
+    }
+
+    def _video_script_system(self, category_display: str) -> str:
+        style = self.CATEGORY_STYLES.get(category_display, self.CATEGORY_STYLES["技术趋势"])
+        return f"""你是短视频内容策划专家，擅长制作高质量的 8 场景短视频。
+
+当前分类：{category_display}
+视频风格：{style['vibe']}
+渐变色：{style['gradient']}
+
+你的输出必须严格按照以下格式，每场景一行，用 | 分隔字段。"""
+
+    def _video_script_user(self, blog: str, category_display: str) -> str:
+        style = self.CATEGORY_STYLES.get(category_display, self.CATEGORY_STYLES["技术趋势"])
+        gradient = style["gradient"]
+        return f"""将以下关于「{category_display}」的文章改写为「8 场景短视频脚本」，格式如下：
+
+## S0 | 场景名称 | 视觉类型 | {gradient}
+文案：第一行
+       第二行（可选）
+
+## S1 | 场景名称 | 视觉类型 | {gradient}
+文案：第一行
+...
+
+【叙事顺序】（固定，不可改变）：
+S0 钩子 — S1 点名 — S2 解释 — S3 类比 — S4 金句 — S5 展开 — S6 升华 — S7 收尾
+
+【视觉类型】（从以下选择）：
+- explode：爆炸开场，放大+模糊消散
+- number：数字/数据，左右分屏对撞
+- text：纯文字上滑淡入
+- pop：关键词弹性弹入
+- tag：多标签逐个弹出
+- chain：链条式递进
+- ending：五彩渐变结尾
+
+【规范】
+1. 每行文案 ≤15 个中文字符
+2. 不写"画面建议""口播"等舞台指示，只写最终屏幕显示的文字
+3. 复杂场景可拆 2-3 行（每行单独显示）
+4. 视觉类型根据场景内容选择最合适的
+
+风格提示：{style['vibe']}
+
+文章：
+{blog[:3000]}"""
+
     def generate_format(self, fmt: str, blog: str, category_display: str = "") -> str:
         """单独生成某一种衍生格式"""
         prompts = {
@@ -101,14 +157,8 @@ class AIClient:
 {blog[:3000]}"""
             ),
             "video_script": (
-                "你是短视频内容策划，擅长把内容转化为3-5分钟短视频脚本。",
-                f"""将以下关于「{category_display}」的文章改写为短视频脚本：
-- 口播文案 + 画面建议
-- 开头5秒钩子
-- 结尾引导点赞关注
-
-文章：
-{blog[:3000]}"""
+                self._video_script_system(category_display),
+                self._video_script_user(blog, category_display),
             ),
             "english": (
                 "你是专业技术翻译，中译英地道、符合技术写作规范。",
