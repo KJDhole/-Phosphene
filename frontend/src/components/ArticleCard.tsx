@@ -1,5 +1,5 @@
 import { Tag, Space, Button, Popconfirm, message, Tooltip } from 'antd';
-import { EyeOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EyeOutlined, ReloadOutlined, DeleteOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { deleteArticle, runCategory } from '../api/client';
@@ -106,6 +106,16 @@ export default function ArticleCard({ article }: Props) {
       </div>
 
       <Space style={{ flexShrink: 0 }}>
+        <Tooltip title="🎬 生成视频">
+          <Button
+            size="small"
+            icon={<VideoCameraOutlined />}
+            onClick={() => navigate(`/video/${article.slug}?category=${article.category}`)}
+            style={{ color: '#7C3AED' }}
+          >
+            视频
+          </Button>
+        </Tooltip>
         <Tooltip title="预览">
           <Button
             size="small"

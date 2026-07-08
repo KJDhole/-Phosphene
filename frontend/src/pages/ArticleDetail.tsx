@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Button, Space, message, Skeleton, Typography } from 'antd';
-import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CopyOutlined, DownloadOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { fetchArticleDetail } from '../api/client';
 import FormatTabs from '../components/FormatTabs';
@@ -98,6 +98,16 @@ export default function ArticleDetail() {
             }}
           >
             复制
+          </Button>
+          <Button
+            icon={<VideoCameraOutlined />}
+            onClick={() => navigate(`/video/${id}?category=${category}`)}
+            style={{
+              borderColor: '#7C3AED',
+              color: '#7C3AED',
+            }}
+          >
+            生成视频
           </Button>
           <Button
             icon={<DownloadOutlined />}
