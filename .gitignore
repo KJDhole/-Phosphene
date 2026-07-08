@@ -50,7 +50,6 @@ Thumbs.db
 Desktop.ini
 
 # ── 项目目录 / 子模块 ──
-remotion-video/
 site/
 _build/
 frontend/node_modules/
