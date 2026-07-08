@@ -237,8 +237,11 @@ def _parse_legacy(script_text: str) -> list:
     return scenes
 
 
-def generate_tts(scenes: list, slug: str, work_dir: Path) -> tuple:
-    """edge-tts 生成 8 段配音，返回 (audio_files, audio_frames)"""
+def generate_tts(scenes: list, slug: str, work_dir: Path, voice: str = "zh-CN-XiaoxiaoNeural") -> tuple:
+    """edge-tts 生成 8 段配音，返回 (audio_files, audio_frames)
+
+    支持代理：设置 HTTP_PROXY / HTTPS_PROXY 环境变量
+    """
     import asyncio
     import edge_tts
 
@@ -249,10 +252,20 @@ def generate_tts(scenes: list, slug: str, work_dir: Path) -> tuple:
         text = "，".join(scene["lines"])
         output = work_dir / f"{slug}_audio_{i:02d}.mp3"
 
-        async def _gen(out: Path, txt: str):
-            await edge_tts.Communicate(
-                txt, voice="zh-CN-XiaoxiaoNeural"
-            ).save(str(out))
+        async def _gen(out: Path, txt: str, attempt: int = 1):
+            try:
+                communicate = edge_tts.Communicate(txt, voice=voice)
+                await communicate.save(str(out))
+            except Exception as e:
+                if attempt < 3:
+                    import time as _time
+                    _time.sleep(2 * attempt)
+                    await _gen(out, txt, attempt + 1)
+                else:
+                    raise RuntimeError(
+                        f"TTS 生成失败（已重试3次）: {e}\n"
+                        f"提示：可设置 HTTP_PROXY 环境变量使用代理"
+                    )
 
         asyncio.run(_gen(output, text))
 
