@@ -62,3 +62,10 @@ runtime:
   concurrency: 2
   retry_count: 2
   debug: false
+  scrapling: true          # 是否启用 Scrapling 浏览器采集（反爬站点需要）
+
+# ---- 视频生成 ----
+video:
+  enabled: false                 # 默认关闭，手动触发
+  audio_voice: "zh-CN-XiaoxiaoNeural"
+  prompt_template: ""            # ✅ 预留：可 UI 编辑的 prompt 模板

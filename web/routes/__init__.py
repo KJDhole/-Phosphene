@@ -9,3 +9,4 @@ from . import categories
 from . import run
 from . import history
 from . import config
+from . import video

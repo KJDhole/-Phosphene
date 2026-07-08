@@ -21,6 +21,7 @@ class CategoryOut(BaseModel):
 class RunRequest(BaseModel):
     categories: list[str]
     debug: bool = False
+    use_scrapling: bool = True
 
 
 class RunStatus(BaseModel):
@@ -50,3 +51,16 @@ class ConfigOut(BaseModel):
 
 class ConfigIn(BaseModel):
     content: str
+
+class VideoStatus(BaseModel):
+    slug: str
+    status: str = "pending"  # pending | generating | done | failed
+    progress: float = 0.0
+    video_url: Optional[str] = None
+    error: Optional[str] = None
+
+class VideoConfig(BaseModel):
+    """✅ 预留 — 下版本使用"""
+    prompt_template: str = ""
+    voice: str = "zh-CN-XiaoxiaoNeural"
+    scene_overrides: dict = {}
