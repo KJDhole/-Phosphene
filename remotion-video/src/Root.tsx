@@ -21,6 +21,15 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1920}
         height={1080}
+        calculateMetadata={({ props }) => {
+          const totalFrames = (props.totalFrames as number) || 1;
+          return {
+            durationInFrames: totalFrames,
+            fps: 30,
+            width: 1920,
+            height: 1080,
+          };
+        }}
       />
     </>
   );

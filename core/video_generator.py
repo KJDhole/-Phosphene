@@ -323,6 +323,7 @@ def generate_video(
     category: str,
     slug: str,
     posts_base: Path,
+    progress_callback: any = None,
 ) -> Path:
     """对外入口：生成视频并保存到文章目录
 
@@ -330,15 +331,21 @@ def generate_video(
         category: 分类名 (tech/finance/...)
         slug: 文章 slug (20260708_1454)
         posts_base: docs/posts/ 路径
+        progress_callback: 可选的回调函数(percent: float, message: str)
 
     Returns:
         video.mp4 的 Path
     """
+    def _progress(pct: float, msg: str):
+        if progress_callback:
+            progress_callback(pct, msg)
+
     script_path = posts_base / category / slug / "video_script.md"
     if not script_path.exists():
         raise FileNotFoundError(f"video_script.md not found: {script_path}")
 
     # 1. 解析脚本
+    _progress(0.05, "解析视频脚本...")
     script_text = script_path.read_text(encoding="utf-8")
     parsed = parse_script(script_text)
     scenes = parsed["scenes"]
@@ -346,14 +353,19 @@ def generate_video(
     if not scenes:
         raise ValueError("No scenes found in video_script.md")
 
+    _progress(0.1, f"已解析 {len(scenes)} 个场景")
+
     # 2. 创建临时工作目录
     with tempfile.TemporaryDirectory(prefix=f"video_{slug}_") as tmp_dir:
         work_dir = Path(tmp_dir)
 
         # 3. 生成 TTS
+        _progress(0.2, "正在生成配音 (1/8)...")
         audio_files, audio_frames = generate_tts(scenes, slug, work_dir)
+        _progress(0.4, "配音生成完成")
 
         # 4. 拷贝音频到 Remotion public/
+        _progress(0.45, "准备渲染素材...")
         public_dir = REMOTION_DIR / "public"
         public_dir.mkdir(parents=True, exist_ok=True)
         for af in audio_files:
@@ -361,6 +373,7 @@ def generate_video(
 
         try:
             # 5. 渲染视频
+            _progress(0.5, "Remotion 渲染中...")
             tmp_output = work_dir / f"{slug}.mp4"
             render_video(
                 slug, scenes, audio_files, audio_frames,
@@ -368,11 +381,13 @@ def generate_video(
             )
 
             # 6. 保存到文章目录
+            _progress(0.9, "保存视频文件...")
             output_dir = posts_base / category / slug
             output_dir.mkdir(parents=True, exist_ok=True)
             final_path = output_dir / "video.mp4"
             shutil.copy2(tmp_output, final_path)
 
+            _progress(1.0, "视频生成完成")
             return final_path
 
         finally:
