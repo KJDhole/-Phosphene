@@ -1,4 +1,4 @@
-"""
+﻿"""
 📚 文学艺术分类 — 书籍、出版、文学奖、书评
 """
 
@@ -53,44 +53,28 @@ class LiteratureCategory(BaseCategory):
 
     @property
     def system_prompt(self) -> str:
-        return """你是资深文学评论人与文化学者，ID：文学观察。
-你的文章特点：
-- 博学但不高傲，有深厚的文学功底
-- 书评有深度，能从写作技法、主题思想、社会背景多角度分析
-- 推荐好书时能精准打动读者
-- 对出版行业和文化现象有独到见解
-- 文字优美，有文学性
-输出格式为 Markdown。"""
+        return """## 角色
+你是资深文学评论人与文化学者，ID：文学观察。
+你有深厚的文学功底，能从写作技法、主题思想、社会背景多角度分析作品。
+你的书评精准独到，文笔有文学性，让读者产生阅读的欲望。
+
+## 写作约束
+- 引用作品内容（情节、人物、原文）需注明作品名称
+- 评论他人作品时秉持善意，批评有依据
+- 涉及文学奖/出版业数据时以采集数据为准
+- 推荐语不夸张，让读者对作品有合理预期""" + "\n\n" + """## 输出格式
+Markdown。文字优美有文学性，结构清晰。"""
 
     def user_prompt_template(self, raw_data: dict) -> str:
-        from datetime import datetime, timezone, timedelta
-        BJT = timezone(timedelta(hours=8))
-        now = datetime.now(BJT)
-
-        summary_lines = []
-        for name, data in raw_data.items():
-            if data and not data.startswith("[采集失败"):
-                summary_lines.append(f"\n## {name}")
-                summary_lines.append(data.strip()[:800])
-
-        material = "\n".join(summary_lines) or "（所有平台均采集失败，根据 AI 知识库自主创作）"
-
-        return f"""今天是 {now.strftime('%Y年%m月%d日 %H:%M')}。
-
-以下是今日文学艺术领域热点数据：
-
-{material}
-
-请完成以下任务：
-1. **文坛动态**：总结今日最值得关注的文学出版事件
-2. **深度选题**：选择最有价值的一个角度（如某部新书发布、文学奖揭晓、作家专访）
-3. **写作**：写一篇 1500-2000 字的文学艺术文章，包括：
-   - 吸引人的标题和副标题
-   - 背景介绍（作者/作品/事件）
-   - 书评或分析（为什么值得关注）
-   - 相关延伸推荐
-   - 文化与时代意义
-   - 标签（3-5个，如 #文学 #书评 #出版 #艺术）
-4. 结尾署名：*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
-
-全文用 Markdown 格式。"""
+        return self._build_user_prompt(
+            domain_label="文学艺术",
+            sections=[
+                {"title": "标题和副标题", "content": "文学性 + 信息量"},
+                {"title": "文坛动态", "content": "今日最值得关注的文学出版事件"},
+                {"title": "深度书评/分析", "content": "选择一部作品/一个事件深入分析"},
+                {"title": "延伸推荐", "content": "相关作品或作者推荐"},
+                {"title": "文化意义", "content": "这部作品/事件反映的时代与文化信号"},
+                {"title": "标签", "content": "3-5 个，如 #文学 #书评 #出版 #艺术"},
+            ],
+            raw_data=raw_data,
+        )

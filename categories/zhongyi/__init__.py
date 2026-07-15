@@ -1,4 +1,4 @@
-"""
+﻿"""
 🌿 中医中药分类 — 中医药政策、临床研究、养生文化、行业动态
 """
 
@@ -64,44 +64,28 @@ class ZhongyiCategory(BaseCategory):
 
     @property
     def system_prompt(self) -> str:
-        return """你是资深中医药学者与健康科普作家，ID：杏林观察。
-你的文章特点：
-- 精通中医经典（黄帝内经、伤寒论、金匮要略），又能用现代科学视角解读
-- 关注中医药政策、科研进展、临床实践
-- 对养生文化有独到见解，不迷信不偏颇
-- 语言温润如玉，有传统文人之风，又通俗易懂
-- 既尊重传统，也不排斥现代医学，倡导中西医结合
-输出格式为 Markdown。"""
+        return """## 角色
+你是资深中医药学者与健康科普作家，ID：杏林观察。
+你精通中医经典（黄帝内经、伤寒论、金匮要略），又能用现代科学视角解读。
+你关注中医药政策、科研进展、临床实践，对养生文化有独到见解。
+
+## 写作约束
+- 引用的中医典籍内容必须准确，注明出处
+- 涉及疗效的表述必须基于研究数据或临床证据，不夸大不迷信
+- 不鼓吹「替代西医」，倡导中西医结合视角
+- 养生建议需注明适用人群和禁忌，不给出笼统的「每个人都该做」的建议""" + "\n\n" + """## 输出格式
+Markdown。语言温润，有传统文人之风又通俗易懂。"""
 
     def user_prompt_template(self, raw_data: dict) -> str:
-        from datetime import datetime, timezone, timedelta
-        BJT = timezone(timedelta(hours=8))
-        now = datetime.now(BJT)
-
-        summary_lines = []
-        for name, data in raw_data.items():
-            if data and not data.startswith("[采集失败"):
-                summary_lines.append(f"\n## {name}")
-                summary_lines.append(data.strip()[:800])
-
-        material = "\n".join(summary_lines) or "（所有平台均采集失败，根据 AI 知识库自主创作）"
-
-        return f"""今天是 {now.strftime('%Y年%m月%d日 %H:%M')}。
-
-以下是今日中医药领域热点数据：
-
-{material}
-
-请完成以下任务：
-1. **热点综述**：总结今日中医药行业最值得关注的动态
-2. **深度选题**：选择最有价值的一个角度（如政策解读、新药审批、临床研究突破、名医经验、养生热点）
-3. **写作**：写一篇 1500-2000 字的中医药文章，包括：
-   - 吸引人的标题和副标题
-   - 背景介绍（政策/事件/研究的来龙去脉）
-   - 专业分析（中医理论解读与现代研究证据）
-   - 临床或生活意义（对普通读者有什么用）
-   - 未来展望
-   - 标签（3-5个，如 #中医 #中药 #养生 #针灸 #经方）
-4. 结尾署名：*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
-
-全文用 Markdown 格式。"""
+        return self._build_user_prompt(
+            domain_label="中医药",
+            sections=[
+                {"title": "标题和副标题", "content": "兼顾专业性和传播性"},
+                {"title": "热点综述", "content": "今日中医药行业最值得关注的动态"},
+                {"title": "深度选题", "content": "选择一个角度深入（政策解读/临床研究/养生热点/名医经验）"},
+                {"title": "专业分析", "content": "中医理论解读 + 现代研究证据，二者不可偏废"},
+                {"title": "现实意义", "content": "对普通读者的生活或健康有什么实际帮助"},
+                {"title": "标签", "content": "3-5 个，如 #中医 #中药 #养生 #经方"},
+            ],
+            raw_data=raw_data,
+        )

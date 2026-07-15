@@ -88,124 +88,247 @@ class AIClient:
 
     def _video_script_system(self, category_display: str) -> str:
         style = self.CATEGORY_STYLES.get(category_display, self.CATEGORY_STYLES["技术趋势"])
-        return f"""你是短视频内容策划专家，擅长制作高质量的 8 场景短视频。
+        return f"""你是短视频脚本专家。你的输出被自动渲染引擎解析，**格式必须精确无误**。
 
-当前分类：{category_display}
-视频风格：{style['vibe']}
-渐变色：{style['gradient']}
+## 渲染引擎能力
 
-你的输出必须严格按照以下格式，每场景一行，用 | 分隔字段。"""
+| 视觉类型 | 最佳用途 | 动画效果 | 字号 |
+|---------|---------|---------|-----|
+| explode | 开场标题、重磅声明 | 从1.5倍放大+模糊消散进入 | 56px |
+| number | 关键数据、统计数字 | 数字部分90px渐变彩色，弹性弹入 | 90/56px |
+| pop | 核心关键词、品牌名 | 从1.3倍弹性弹入 | 56px |
+| text | 段落叙述、金句 | 平滑上滑+淡入 | 56px |
+| tag | 列举多项事物 | 逐个弹性弹入 | 36px |
+| chain | 流程、因果链 | 逐个平滑滑入 | 36px |
+| ending | 收尾升华 | 缓慢淡入 | 64px |
+
+## 黄金8场景模板（固定，不可改变）
+
+S0 钩子(explode) → S1 数据(number) → S2 解释(chain) → S3 类比(pop) → S4 金句(text) → S5 展开(tag) → S6 递进(chain) → S7 收尾(ending)
+
+每个场景的视觉类型与叙事阶段绑定，不得变更。
+
+## 核心约束
+
+1. 总文字量：TTS配音约每字0.3秒，8场景总计80-120字最佳
+2. 每行文案不超过12个中文字符，每场景不超过3行
+3. 只写最终屏幕显示的文字，不写"口播""画面建议""视觉效果"等舞台指示
+4. 所有场景使用同一渐变色
+5. 每个场景的文案自洽，前后场景之间有递进关系"""
 
     def _video_script_user(self, blog: str, category_display: str) -> str:
         style = self.CATEGORY_STYLES.get(category_display, self.CATEGORY_STYLES["技术趋势"])
         gradient = style["gradient"]
-        return f"""将以下关于「{category_display}」的文章改写为「8 场景短视频脚本」，格式如下：
+        vibe = style["vibe"]
+        preview = blog[:3000]
+        return f"""将以下关于「{category_display}」的文章改写为8场景短视频脚本。
 
-## S0 | 场景名称 | 视觉类型 | {gradient}
+分类风格：{vibe}
+渐变色：{gradient}
+
+## 输出格式（严格）
+
+每个场景写4行，格式如下：
+
+```
+## S0 | 场景名称 | explode | {gradient}
 文案：第一行
-       第二行（可选）
+       第二行（可选，缩进2格）
+       第三行（可选，缩进2格）
+```
 
-## S1 | 场景名称 | 视觉类型 | {gradient}
-文案：第一行
-...
+视觉类型固定映射：
+S0=explode  S1=number  S2=chain  S3=pop  S4=text  S5=tag  S6=chain  S7=ending
 
-【叙事顺序】（固定，不可改变）：
-S0 钩子 — S1 点名 — S2 解释 — S3 类比 — S4 金句 — S5 展开 — S6 升华 — S7 收尾
+## 完整8场景示例
 
-【视觉类型】（从以下选择）：
-- explode：爆炸开场，放大+模糊消散
-- number：数字/数据，左右分屏对撞
-- text：纯文字上滑淡入
-- pop：关键词弹性弹入
-- tag：多标签逐个弹出
-- chain：链条式递进
-- ending：五彩渐变结尾
+```
+## S0 | 重磅开场 | explode | {gradient}
+文案：标题
 
-【规范】
-1. 每行文案 ≤15 个中文字符
-2. 不写"画面建议""口播"等舞台指示，只写最终屏幕显示的文字
-3. 复杂场景可拆 2-3 行（每行单独显示）
-4. 视觉类型根据场景内容选择最合适的
+## S1 | 关键数据 | number | {gradient}
+文案：数字
+       单位说明
 
-风格提示：{style['vibe']}
+## S2 | 核心逻辑 | chain | {gradient}
+文案：第一步
+       第二步
 
-文章：
-{blog[:3000]}"""
+## S3 | 直观类比 | pop | {gradient}
+文案：类比对象
+       对比点
+
+## S4 | 一句金句 | text | {gradient}
+文案：可传播的核心观点
+
+## S5 | 案例展开 | tag | {gradient}
+文案：案例一
+       案例二
+       案例三
+
+## S6 | 层层递进 | chain | {gradient}
+文案：因为A
+       所以B
+
+## S7 | 收尾升华 | ending | {gradient}
+文案：一句升华
+```
+
+## 检查清单
+
+- [ ] 每行文案不超过12汉字 | 每场景不超过3行 | 总计不超过120字
+- [ ] 视觉类型严格匹配：S0=explode S1=number S2=chain S3=pop S4=text S5=tag S6=chain S7=ending
+- [ ] 渐变色全部为 {gradient}，所有场景一致
+- [ ] 8场景叙事线完整：钩子、数据、解释、类比、金句、展开、递进、收尾
+- [ ] 没有舞台指示词（口播、画面、视觉效果等）
+- [ ] 文案之间有递进关系，读下来是一个完整故事
+
+## 文章原文
+
+{preview}"""
+    _TWITTER_SYSTEM = """你是社交媒体运营专家，精通 Twitter/X 中文内容策略。
+你擅长把长篇深度内容提炼为高互动率的推文串（thread）。
+每条推文都是一个独立的钩子，推动读者一条接一条往下读。"""
+
+    _TWITTER_USER = """将以下关于「{category}」的文章提炼为一条 Twitter/X 推文串（5-8条）：
+
+## 格式规范
+- 每条推文 ≤280 字符（中文约 130 字以内）
+- 用序号标注：1/6 2/6 3/6 ... 6/6
+- 第1条必须有强钩子（悬念/反常识/问题/惊人事实）
+- 从第2条开始逐层递进：背景 → 核心观点 → 证据 → 结论
+- 最后一条引导互动（提问/投票/转发语）
+
+## 质量要求
+- 保留原文最核心的 1-2 个观点，不要贪多
+- 每条推文独立可读，不依赖上下文
+- 语言口语化、有网感，但不过度网络用语
+- 不加 #标签，直接用文字表达
+
+## 输出格式
+纯文本，每条推文之间用空行分隔。
+
+文章内容：
+{blog}"""
+
+    _NEWSLETTER_SYSTEM = """你是邮件营销内容专家，擅长写高打开率、高点击率的 Newsletter。
+你理解邮件通讯的特点：读者是主动订阅的，但注意力极其有限。
+你的目标是在 3 秒内让读者觉得「这封邮件值得读完」。"""
+
+    _NEWSLETTER_USER = """将以下关于「{category}」的文章改写为一封邮件 Newsletter：
+
+## 结构要求
+1. **邮件主题行**：15 字以内，让读者想点开（不要只是标题复制）
+2. **预览文字**：1 句话，在收件箱中紧跟在主题行后
+3. **开篇问候**：简短亲切，像写给朋友的信
+4. **核心内容**：300 字以内摘要，只保留最重要的信息
+5. **行动号召**：读者读完可以做什么（阅读全文/回复观点/分享）
+6. **结尾祝福**：「祝好，Glenn」
+
+## 质量要求
+- 语气亲切但不啰嗦，像朋友分享见解而非营销推销
+- 段落简短（每段 ≤3 行），用空行分隔
+- 关键信息可加粗
+- 去掉原文的所有 Markdown 标题层级，改用自然段落
+
+文章内容：
+{blog}"""
+
+    _ENGLISH_SYSTEM = """你是专业中英翻译与本地化专家。
+你擅长将中文内容转化为地道、自然的英文，而不是字对字翻译。
+你熟悉技术写作规范，译文符合英美读者的阅读习惯。"""
+
+    _ENGLISH_USER = """将以下中文文章译为英文：
+
+## 翻译要求
+- **不要字对字翻译**：理解中文原意后用自然的英文重新表达
+- **标题要吸引英文读者**：符合英文标题习惯（首字母大写/主动语态/简短有力）
+- **保持术语准确**：技术术语、人名、品牌名使用英文通用写法
+- **文化适配**：中文特有的文化概念（如"内卷""躺平"）需加简短解释或找英文对等概念
+- **段落结构**：按英文习惯拆分段落（topic sentence first）
+
+## 质量要求
+- 每段不超过 5 行
+- 句子以简洁为美，避免过长的从句堆叠
+- 用词精准但不生僻，让非母语读者也能顺畅阅读
+- 修订后通读一遍，确保读起来不像翻译
+
+原文：
+{blog}"""
 
     def generate_format(self, fmt: str, blog: str, category_display: str = "") -> str:
         """单独生成某一种衍生格式"""
-        prompts = {
-            "twitter": (
-                "你是社交媒体运营专家，擅长把长文提炼为吸引人的推文串。",
-                f"""以下是一篇关于「{category_display}」的文章，请提炼为一条 Twitter/X 推文串（5-8条）：
-每条≤280字，有钩子（hook），用序号 1/8 2/8 标注。
-语言：中文。
+        blog = blog[:3000]
+        if fmt == "twitter":
+            system = self._TWITTER_SYSTEM
+            user = self._TWITTER_USER.format(category=category_display, blog=blog)
+            temp = 0.7
+        elif fmt == "newsletter":
+            system = self._NEWSLETTER_SYSTEM
+            user = self._NEWSLETTER_USER.format(category=category_display, blog=blog)
+            temp = 0.7
+        elif fmt == "english":
+            system = self._ENGLISH_SYSTEM
+            user = self._ENGLISH_USER.format(blog=blog[:4000])
+            temp = 0.3
+        elif fmt == "video_script":
+            system = self._video_script_system(category_display)
+            user = self._video_script_user(blog, category_display)
+            temp = 0.7
+        else:
+            return f"// 不支持的格式: {fmt}"
 
-文章内容：
-{blog[:3000]}"""
-            ),
-            "newsletter": (
-                "你是邮件营销专家，擅长写高打开率的 Newsletter。",
-                f"""将以下关于「{category_display}」的文章改写为邮件 Newsletter：
-- 吸引标题 + 预览文字
-- 开篇问候
-- 核心摘要（300字内）
-- 行动号召
-- 祝福结尾
+        return self.call(system, user, temperature=temp)
 
-文章：
-{blog[:3000]}"""
-            ),
-            "video_script": (
-                self._video_script_system(category_display),
-                self._video_script_user(blog, category_display),
-            ),
-            "english": (
-                "你是专业技术翻译，中译英地道、符合技术写作规范。",
-                f"""将以下中文文章译为英文：
-- 标题要吸引英文读者
-- 保持内容准确性
-- 符合英文写作风格
+    # ── 单次调用多格式（省 token 时使用） ──
+
+    _MULTI_FORMAT_SYSTEM = """你是多平台内容运营专家，擅长把一篇长文转化为 5 种不同平台的格式。
+
+你的输出必须使用 ===FORMAT:名称=== 作为分隔标记，每种格式独立输出。
+
+质量要求：
+- 每种格式独立完整，不依赖上下文
+- 各格式的风格需适配对应平台的特点
+- 内容准确性保持一致，不因改写而失真"""
+
+    _MULTI_FORMAT_USER = """将以下关于「{category}」的文章转化为 5 种格式。
 
 原文：
-{blog[:4000]}"""
-            ),
-        }
-        if fmt not in prompts:
-            return f"// 不支持的格式: {fmt}"
-        system, user = prompts[fmt]
-        temp = 0.3 if fmt == "english" else 0.7
-        return self.call(system, user, temperature=temp)
+{blog}
+
+请严格按照以下分隔格式输出每种格式：
+
+===FORMAT:BLOG===
+（原文即可，无需修改。确保 Markdown 格式完整。）
+
+===FORMAT:TWITTER===
+（推文串：5-8条，每条 ≤280 字符。第1条钩子，逐层递进，最后一条引导互动。
+ 用序号标注：1/6 2/6 ... 6/6。每条之间空行分隔。
+ 不加 #标签，语言口语化有网感。）
+
+===FORMAT:NEWSLETTER===
+（邮件通讯。结构：主题行 | 预览文字 | 问候 | 300字核心摘要 | 行动号召 | 祝福。
+ 语气亲切不啰嗦，段落简短，去掉 Markdown 标题层级改用自然段落。）
+
+===FORMAT:VIDEO_SCRIPT===
+（短视频脚本：8 场景，叙事顺序固定。
+ S0 钩子 → S1 点名 → S2 解释 → S3 类比 → S4 金句 → S5 展开 → S6 升华 → S7 收尾。
+ 每场景一句文案，≤15 中文字符。
+ 不写舞台指示，只写最终屏幕文字。
+ 格式：## S0 | 场景名 | 视觉类型 | 渐变色
+ 视觉类型可选：explode / number / text / pop / tag / chain / ending）
+
+===FORMAT:ENGLISH===
+（英文版：自然地道英语，不要字对字翻译。
+ 标题简洁有力，符合英文写作规范。
+ 段落不超过 5 行，每段 topic sentence 先行。）"""
 
     def generate_all_formats(self, blog: str, category_display: str = "") -> dict:
         """一次性调用 AI 产出所有格式"""
-        system = """你是多平台内容运营专家，擅长把一篇长文转化为不同平台的内容格式。
-请严格按照要求输出每种格式，用 ===FORMAT:名称=== 作为分隔标记。"""
-        user = f"""以下是一篇关于「{category_display}」的文章，请将其转化为 5 种不同格式的内容。
-
-原文：
-{blog[:4000]}
-
-请严格按照以下分隔格式输出：
-
-===FORMAT:BLOG===
-（这里放原文即可，无需修改）
-
-===FORMAT:TWITTER===
-（推文串：5-8条推文，每条≤280字，带钩子引导点击，用序号 1/8 2/8 标注）
-
-===FORMAT:NEWSLETTER===
-（邮件通讯：吸引人的标题+预览文字+问候+300字摘要+行动号召+祝福）
-
-===FORMAT:VIDEO_SCRIPT===
-（短视频脚本：3-5分钟，分镜格式，开头5秒钩子，结尾引导关注）
-
-===FORMAT:ENGLISH===
-（英文版：地道英语，标题吸引英文读者，不要直译）"""
-        raw = self.call(system, user, temp=0.7, max_tokens=6000)
+        blog = blog[:4000]
+        user = self._MULTI_FORMAT_USER.format(category=category_display, blog=blog)
+        raw = self.call(self._MULTI_FORMAT_SYSTEM, user, temp=0.7, max_tokens=6000)
         return self._parse_formats(raw)
-
-    @staticmethod
     def _parse_formats(raw: str) -> dict:
         """解析 AI 单次调用的多格式输出"""
         results = {}
