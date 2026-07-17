@@ -76,6 +76,12 @@ class VideoStatus(BaseModel):
     video_url: Optional[str] = None
     error: Optional[str] = None
     message: Optional[str] = None
+    review_status: str = "awaiting_review"
+
+
+class VideoReviewUpdate(BaseModel):
+    status: Literal["awaiting_review", "changes_requested", "approved"]
+    note: str = Field(default="", max_length=1000)
 
 class VideoConfig(BaseModel):
     """✅ 预留 — 下版本使用"""

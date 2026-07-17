@@ -15,8 +15,80 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from urllib.request import urlretrieve
+
+from core.video_assets import select_asset
+from core.video_storyboard import build_storyboard
 
 REMOTION_DIR = Path(__file__).parent.parent / "remotion-video"
+
+
+def write_video_manifest(destination: Path, storyboard: dict, assets: list[dict]) -> None:
+    """Persist the exact render inputs and asset provenance for human review."""
+    payload = {
+        "review_status": "awaiting_review",
+        "storyboard": storyboard,
+        "assets": assets,
+    }
+    destination.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def update_video_review_status(manifest_path: Path, status: str, note: str = "") -> dict:
+    """Persist the human decision that gates use of a generated video."""
+    if status not in {"awaiting_review", "approved", "changes_requested"}:
+        raise ValueError(f"Unsupported video review status: {status}")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["review_status"] = status
+    payload["review_note"] = note
+    manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return payload
+
+
+def allocate_audio_frames(weights: list[int], total_frames: int, minimum: int = 30) -> list[int]:
+    """Allocate a measured narration duration across scenes by spoken length."""
+    if not weights or total_frames < minimum * len(weights):
+        raise ValueError("Not enough audio duration for the requested scenes")
+    weight_sum = sum(max(weight, 1) for weight in weights)
+    remaining = total_frames - minimum * len(weights)
+    frames = [minimum + round(remaining * max(weight, 1) / weight_sum) for weight in weights]
+    frames[-1] += total_frames - sum(frames)
+    return frames
+
+
+def _load_evidence_urls(output_dir: Path) -> list[str]:
+    """Use only article evidence already retained by the pipeline."""
+    metadata_path = output_dir / "metadata.json"
+    if not metadata_path.exists():
+        return []
+    try:
+        evidence = json.loads(metadata_path.read_text(encoding="utf-8")).get("evidence", {})
+        urls = []
+        for source in evidence.values() if isinstance(evidence, dict) else []:
+            for item in source.get("items", []):
+                if item.get("url"):
+                    urls.append(item["url"])
+        return urls
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return []
+
+
+def _stage_stock_assets(assets: list[dict], public_dir: Path, slug: str) -> list[str]:
+    """Download selected Pexels videos so Remotion never depends on remote playback."""
+    staged = []
+    for index, asset in enumerate(assets):
+        if asset.get("kind") != "stock_video" or not asset.get("download_url"):
+            continue
+        filename = f"{slug}_asset_{index:02d}.mp4"
+        try:
+            urlretrieve(asset["download_url"], public_dir / filename)  # nosec B310: selected HTTPS asset
+            asset["file_name"] = filename
+            staged.append(filename)
+        except OSError:
+            asset.clear()
+            asset.update({"kind": "motion_graphic", "source": "generated", "attribution": {}})
+    return staged
 
 
 def parse_script(script_text: str) -> dict:
@@ -290,12 +362,47 @@ def generate_tts(scenes: list, slug: str, work_dir: Path, voice: str = "zh-CN-Xi
     return audio_files, audio_frames
 
 
+def generate_continuous_tts(
+    scenes: list, slug: str, work_dir: Path, voice: str = "zh-CN-XiaoxiaoNeural"
+) -> tuple[list[str], list[int]]:
+    """Generate one narration track so scene boundaries do not reset the voice."""
+    import asyncio
+    import edge_tts
+
+    texts = ["，".join(scene["lines"]) for scene in scenes]
+    output = work_dir / f"{slug}_narration.mp3"
+
+    async def _generate() -> None:
+        for attempt in range(1, 4):
+            try:
+                communicate = edge_tts.Communicate("\n\n".join(texts), voice=voice, rate="-4%")
+                await communicate.save(str(output))
+                return
+            except Exception as exc:
+                if attempt == 3:
+                    raise RuntimeError(f"TTS generation failed after 3 attempts: {exc}") from exc
+                await asyncio.sleep(attempt * 2)
+
+    asyncio.run(_generate())
+    try:
+        from moviepy import AudioFileClip
+        clip = AudioFileClip(str(output))
+        total_frames = round(clip.duration * 30)
+        clip.close()
+    except ImportError:
+        total_frames = max(30 * len(scenes), sum(len(text) for text in texts) * 9)
+    return [output.name], allocate_audio_frames([len(text) for text in texts], total_frames)
+
+
 def render_video(
     slug: str,
     scenes: list,
     audio_files: list,
     audio_frames: list,
     output_path: Path,
+    assets: list[dict] | None = None,
+    category: str = "tech",
+    title: str = "",
 ) -> str:
     """调用 Remotion CLI 渲染视频"""
     total_frames = sum(audio_frames)
@@ -306,6 +413,9 @@ def render_video(
         "audioFiles": audio_files,
         "audioFrames": audio_frames,
         "totalFrames": total_frames,
+        "assets": assets or [],
+        "category": category,
+        "title": title,
     }
 
     props_json = json.dumps(props, ensure_ascii=False)
@@ -384,6 +494,13 @@ def generate_video(
     _progress(0.1, f"已解析 {len(scenes)} 个场景")
 
     # 2. 创建临时工作目录
+    output_dir = posts_base / category / slug
+    storyboard = build_storyboard(parsed, _load_evidence_urls(output_dir))
+    scenes = storyboard["scenes"]
+    assets = [select_asset(scene, os.environ.get("PEXELS_API_KEY")) for scene in scenes]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_video_manifest(output_dir / "video_manifest.json", storyboard, assets)
+
     with tempfile.TemporaryDirectory(prefix=f"video_{slug}_") as tmp_dir:
         work_dir = Path(tmp_dir)
 
@@ -392,7 +509,7 @@ def generate_video(
         from core.config import load_config
         voice = load_config().get("video", {}).get("audio_voice", "zh-CN-XiaoxiaoNeural")
         asset_key = f"{category}_{slug}"
-        audio_files, audio_frames = generate_tts(scenes, asset_key, work_dir, voice=voice)
+        audio_files, audio_frames = generate_continuous_tts(scenes, asset_key, work_dir, voice=voice)
         _progress(0.4, "配音生成完成")
 
         # 4. 拷贝音频到 Remotion public/
@@ -401,6 +518,8 @@ def generate_video(
         public_dir.mkdir(parents=True, exist_ok=True)
         for af in audio_files:
             shutil.copy2(work_dir / af, public_dir / af)
+        staged_assets = _stage_stock_assets(assets, public_dir, asset_key)
+        write_video_manifest(output_dir / "video_manifest.json", storyboard, assets)
 
         try:
             # 5. 渲染视频
@@ -409,6 +528,9 @@ def generate_video(
             render_video(
                 slug, scenes, audio_files, audio_frames,
                 tmp_output,
+                assets=assets,
+                category=parsed["category"],
+                title=parsed["title"],
             )
 
             # 6. 保存到文章目录
@@ -425,5 +547,9 @@ def generate_video(
             # 清理 public/ 中的临时音频
             for af in audio_files:
                 fpath = public_dir / af
+                if fpath.exists():
+                    fpath.unlink()
+            for filename in staged_assets:
+                fpath = public_dir / filename
                 if fpath.exists():
                     fpath.unlink()

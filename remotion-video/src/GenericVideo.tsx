@@ -1,249 +1,102 @@
 import {
   AbsoluteFill,
-  useCurrentFrame,
-  interpolate,
   Audio,
-  staticFile,
-  Sequence,
   Easing,
+  OffthreadVideo,
+  Sequence,
+  interpolate,
+  staticFile,
+  useCurrentFrame,
 } from "remotion";
 
-/* ── 7 套分类渐变色 ── */
-const GRADIENTS: Record<string, string> = {
-  a1: "linear-gradient(135deg, #818cf8, #c084fc)",   // 紫（tech）
-  a2: "linear-gradient(135deg, #f59e0b, #ef4444)",   // 金橙（finance）
-  a3: "linear-gradient(135deg, #3b82f6, #14b8a6)",   // 蓝青（business）
-  a4: "linear-gradient(135deg, #ec4899, #8b5cf6)",   // 粉紫（entertainment）
-  a5: "linear-gradient(135deg, #d97706, #b45309)",   // 暖棕（literature）
-  a6: "linear-gradient(135deg, #1e40af, #3b82f6)",   // 深蓝（world）
-  a7: "linear-gradient(135deg, #059669, #10b981)",   // 翠绿（zhongyi）
-};
-
-/* ── InputProps 类型 ── */
 export interface SceneData {
   id: number;
   name: string;
   lines: string[];
   visualType: "explode" | "number" | "text" | "pop" | "tag" | "chain" | "ending";
   gradient: string;
+  layout?: "hook" | "fact_card" | "explain" | "analogy" | "quote" | "process" | "ending";
+}
+
+interface AssetData {
+  kind: "stock_video" | "motion_graphic" | "infographic";
+  file_name?: string;
 }
 
 export interface VideoProps {
   slug: string;
-  category: string;
   title: string;
+  category: string;
   scenes: SceneData[];
   audioFiles: string[];
   audioFrames: number[];
-  totalFrames: number;
+  assets: AssetData[];
 }
 
-/* ── 缓动工具 ── */
-const easeOut = Easing.out(Easing.ease);
-const easeBack = Easing.out(Easing.back(0.6));
-
-/* ── 样式工具 ── */
-const center: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 80,
+const COLORS: Record<string, [string, string]> = {
+  tech: ["#5B5CE2", "#00D4FF"],
+  finance: ["#F59E0B", "#EF4444"],
+  business: ["#0EA5E9", "#14B8A6"],
+  literature: ["#C2410C", "#F59E0B"],
 };
 
-const ts = (
-  size: number,
-  color = "#ffffff",
-  extra: React.CSSProperties = {}
-): React.CSSProperties => ({
-  fontFamily: "'Inter', sans-serif",
-  fontWeight: 700,
-  fontSize: size,
-  color,
-  textAlign: "center",
-  lineHeight: 1.3,
-  letterSpacing: "-0.02em",
-  ...extra,
-});
-
-const gt = (g: string): React.CSSProperties => ({
-  background: g,
-  backgroundClip: "text",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-});
-
-/* ── 基础动画函数 ── */
-const fadeOut = (f: number, dur: number) => ({
-  opacity: interpolate(f, [dur - 8, dur], [1, 0], {
-    extrapolateRight: "clamp",
-  }),
-});
-
-const smoothIn = (f: number, delay = 0, duration = 20) => ({
-  opacity: interpolate(f, [delay, delay + duration * 0.5], [0, 1], {
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  }),
-  transform: `translateY(${interpolate(
-    f,
-    [delay, delay + duration],
-    [24, 0],
-    { extrapolateRight: "clamp", easing: easeOut }
-  )}px)`,
-});
-
-const popIn = (f: number, delay = 0) => ({
-  opacity: interpolate(f, [delay, delay + 10], [0, 1], {
-    extrapolateRight: "clamp",
-  }),
-  transform: `scale(${interpolate(f, [delay, delay + 18], [1.3, 1], {
-    extrapolateRight: "clamp",
-    easing: easeBack,
-  })})`,
-});
-
-const explodeIn = (f: number, delay = 0) => ({
-  opacity: interpolate(f, [delay, delay + 15], [0, 1], {
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  }),
-  transform: `scale(${interpolate(f, [delay, delay + 15], [1.5, 1], {
-    extrapolateRight: "clamp",
-    easing: easeOut,
-  })})`,
-  filter: `blur(${interpolate(f, [delay, delay + 15], [8, 0], {
-    extrapolateRight: "clamp",
-  })}px)`,
-});
-
-/* ── 场景渲染器 ── */
-const renderScene = (
-  scene: SceneData,
-  f: number,
-  dur: number
-): React.CSSProperties[] => {
-  const base = fadeOut(f, dur);
-  const delayPerLine = 8;
-  switch (scene.visualType) {
-    case "explode":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...explodeIn(f, i * delayPerLine),
-      }));
-    case "number":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...popIn(f, i * delayPerLine),
-      }));
-    case "pop":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...popIn(f, i * delayPerLine),
-      }));
-    case "tag":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...popIn(f, i * 6),
-      }));
-    case "chain":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...smoothIn(f, i * 6, 12),
-      }));
-    case "ending":
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...smoothIn(f, i * 10, 20),
-      }));
-    case "text":
-    default:
-      return scene.lines.map((_, i) => ({
-        ...base,
-        ...smoothIn(f, i * delayPerLine),
-      }));
-  }
-};
-
-/* ── 场景组件 ── */
-const SceneRenderer = ({
-  scene,
-  f,
-  dur,
-}: {
-  scene: SceneData;
-  f: number;
-  dur: number;
-}) => {
-  const styles = renderScene(scene, f, dur);
-  const grad = GRADIENTS[scene.gradient] || GRADIENTS["a1"];
-
-  return (
-    <div style={{ ...center, ...fadeOut(f, dur) }}>
-      {scene.lines.map((line, i) => {
-        const isFirst = i === 0;
-        const isGradient =
-          scene.visualType === "number" && isFirst;
-        return (
-          <div
-            key={i}
-            style={{
-              ...ts(isGradient ? 90 : 56, isGradient ? undefined : "rgba(255,255,255,0.85)"),
-              ...(isGradient ? gt(grad) : {}),
-              marginBottom: 8,
-              ...styles[i],
-            }}
-          >
-            {line}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-/* ═══ 主组件 ═══ */
-export const GenericVideo: React.FC<Record<string, unknown>> = (props) => {
-  const { scenes, audioFiles, audioFrames } = props as unknown as VideoProps;
-  const frame = useCurrentFrame();
-
-  // 计算场景起始帧
-  let acc = 0;
-  const sceneStarts = audioFrames.map((fr) => {
-    const start = acc;
-    acc += fr;
+const sceneStarts = (frames: number[]) => {
+  let cursor = 0;
+  return frames.map((duration) => {
+    const start = cursor;
+    cursor += duration;
     return start;
   });
+};
 
-  return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a0f", overflow: "hidden" }}>
-      {/* 背景光晕 */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(99,102,241,0.15) 0%, transparent 70%)," +
-            "radial-gradient(ellipse 60% 50% at 30% 70%, rgba(168,85,247,0.10) 0%, transparent 60%)",
-        }}
-      />
+const SceneBackground: React.FC<{asset?: AssetData; colors: [string, string]}> = ({asset, colors}) => {
+  if (asset?.kind === "stock_video" && asset.file_name) {
+    return <OffthreadVideo src={staticFile(asset.file_name)} style={{width: "100%", height: "100%", objectFit: "cover", opacity: 0.54}} />;
+  }
+  return <AbsoluteFill style={{background: `radial-gradient(circle at 18% 20%, ${colors[0]}88, transparent 40%), radial-gradient(circle at 84% 76%, ${colors[1]}66, transparent 42%), #090B14`}} />;
+};
 
-      {scenes.map((scene, i) => (
-        <Sequence
-          key={scene.id}
-          from={sceneStarts[i]}
-          durationInFrames={audioFrames[i]}
-        >
-          <Audio src={staticFile(audioFiles[i])} />
-          <SceneRenderer
-            scene={scene}
-            f={frame - sceneStarts[i]}
-            dur={audioFrames[i]}
-          />
-        </Sequence>
-      ))}
-    </AbsoluteFill>
-  );
+const Kicker: React.FC<{scene: SceneData; index: number; colors: [string, string]}> = ({scene, index, colors}) => (
+  <div style={{position: "absolute", top: 116, left: 76, right: 76, color: "#ffffffb8", fontSize: 28, letterSpacing: 3, fontWeight: 700}}>
+    <span style={{color: colors[1]}}>{String(index + 1).padStart(2, "0")}</span> / {scene.name}
+  </div>
+);
+
+const SceneText: React.FC<{scene: SceneData; frame: number; duration: number; colors: [string, string]}> = ({scene, frame, duration, colors}) => {
+  const opacity = interpolate(frame, [0, 9, duration - 8, duration], [0, 1, 1, 0], {extrapolateRight: "clamp", easing: Easing.out(Easing.cubic)});
+  const lift = interpolate(frame, [0, 16], [46, 0], {extrapolateRight: "clamp", easing: Easing.out(Easing.cubic)});
+  const headline = scene.lines[0] || scene.name;
+  const detail = scene.lines.slice(1);
+  const layout = scene.layout || "explain";
+  const fact = layout === "fact_card";
+  const quote = layout === "quote";
+  return <div style={{position: "absolute", left: 76, right: 76, bottom: layout === "ending" ? 270 : 250, opacity, transform: `translateY(${lift}px)`}}>
+    {quote && <div style={{fontSize: 112, color: colors[1], lineHeight: 0.7}}>“</div>}
+    <div style={{fontSize: fact ? 116 : quote ? 76 : 82, fontWeight: 800, color: "white", letterSpacing: -3, lineHeight: 1.16, textShadow: "0 8px 28px rgba(0,0,0,.42)"}}>{headline}</div>
+    {detail.map((line, index) => <div key={index} style={{marginTop: 22, fontSize: 42, fontWeight: 600, color: "#F3F4F6", lineHeight: 1.35}}>{line}</div>)}
+    {layout === "process" && <div style={{display: "flex", gap: 14, marginTop: 42}}>{[0, 1, 2].map((step) => <div key={step} style={{width: 74, height: 10, borderRadius: 99, background: step === 1 ? colors[1] : "#ffffff55"}} />)}</div>}
+  </div>;
+};
+
+const SceneRenderer: React.FC<{scene: SceneData; asset?: AssetData; frame: number; duration: number; index: number; colors: [string, string]}> = ({scene, asset, frame, duration, index, colors}) => (
+  <AbsoluteFill style={{overflow: "hidden"}}>
+    <SceneBackground asset={asset} colors={colors} />
+    <AbsoluteFill style={{background: "linear-gradient(180deg, rgba(6,8,15,.18), rgba(6,8,15,.2) 45%, rgba(6,8,15,.9))"}} />
+    <Kicker scene={scene} index={index} colors={colors} />
+    <SceneText scene={scene} frame={frame} duration={duration} colors={colors} />
+    <div style={{position: "absolute", left: 76, right: 76, bottom: 110, height: 5, background: "#ffffff2e", borderRadius: 9}}><div style={{height: "100%", borderRadius: 9, width: `${interpolate(frame, [0, duration], [0, 100], {extrapolateRight: "clamp"})}%`, background: colors[1]}} /></div>
+  </AbsoluteFill>
+);
+
+export const GenericVideo: React.FC<Record<string, unknown>> = (rawProps) => {
+  const props = rawProps as unknown as VideoProps;
+  const frame = useCurrentFrame();
+  const starts = sceneStarts(props.audioFrames);
+  const colors = COLORS[props.category] || COLORS.tech;
+  return <AbsoluteFill style={{background: "#090B14", overflow: "hidden"}}>
+    {props.audioFiles[0] && <Audio src={staticFile(props.audioFiles[0])} />}
+    {props.scenes.map((scene, index) => <Sequence key={scene.id} from={starts[index]} durationInFrames={props.audioFrames[index]}>
+      <SceneRenderer scene={scene} asset={props.assets[index]} index={index} frame={frame - starts[index]} duration={props.audioFrames[index]} colors={colors} />
+    </Sequence>)}
+  </AbsoluteFill>;
 };

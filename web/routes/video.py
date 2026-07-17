@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 from web.routes import router
-from web.models import VideoStatus, VideoConfig
+from web.models import VideoStatus, VideoConfig, VideoReviewUpdate
 from core.config import ROOT, load_config
 
 # 运行状态（进程内简单存储）
@@ -28,11 +28,17 @@ def get_video_status(slug: str, category: Optional[str] = None):
 
     video_path = _find_video(slug, category, posts_dir)
     if video_path:
+        review_status = "awaiting_review"
+        manifest = video_path.parent / "video_manifest.json"
+        if manifest.exists():
+            import json
+            review_status = json.loads(manifest.read_text(encoding="utf-8")).get("review_status", review_status)
         return VideoStatus(
             slug=slug,
             status="done",
             progress=1.0,
             video_url=f"/api/video/{slug}?category={category}" if category else f"/api/video/{slug}",
+            review_status=review_status,
         )
 
     return VideoStatus(slug=slug, status="pending")
@@ -83,6 +89,18 @@ async def trigger_generate_video(slug: str, category: str):
 
     asyncio.create_task(_run_generate(slug, category))
     return status
+
+
+@router.put("/video/{slug}/review")
+def review_video(slug: str, review: VideoReviewUpdate, category: str):
+    """Approve or return a rendered preview for revision."""
+    _validate_identifiers(slug, category)
+    manifest = ROOT / "docs" / "posts" / category / slug / "video_manifest.json"
+    if not manifest.exists():
+        raise HTTPException(404, "视频审核清单不存在，请先生成视频")
+    from core.video_generator import update_video_review_status
+    update_video_review_status(manifest, review.status, review.note)
+    return {"slug": slug, "status": review.status, "note": review.note}
 
 
 async def _run_generate(slug: str, category: str):

@@ -11,8 +11,8 @@ export const RemotionRoot: React.FC = () => {
         component={MyComposition}
         durationInFrames={1386}
         fps={30}
-        width={1920}
-        height={1080}
+        width={1080}
+        height={1920}
       />
       <Composition
         id="GenericVideo"
@@ -26,8 +26,8 @@ export const RemotionRoot: React.FC = () => {
           return {
             durationInFrames: totalFrames,
             fps: 30,
-            width: 1920,
-            height: 1080,
+            width: 1080,
+            height: 1920,
           };
         }}
       />
