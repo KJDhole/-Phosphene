@@ -105,14 +105,25 @@ jobs:
 
           echo "✅ 文件同步完成"
 
-      # ── 远程更新 & 重启 ──
-      - name: 🔄 安装依赖 & 重启服务
+      # ── 远程更新依赖 ──
+      - name: 📦 更新 Python 依赖
         run: |
           ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=30 \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
             "cd /opt/phosphene && \
              source venv/bin/activate && \
-             pip install -r requirements.txt --quiet && \
-             sudo systemctl restart phosphene && \
-             echo '✅ 部署完成'"
+             pip install -r requirements.txt --quiet"
+          echo "✅ 依赖更新完成"
+
+      # ── 重启服务 ──
+      - name: 🔄 重启服务
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "sudo systemctl restart phosphene && sleep 3 && sudo systemctl status phosphene --no-pager"
+          echo "✅ 服务重启完成"
