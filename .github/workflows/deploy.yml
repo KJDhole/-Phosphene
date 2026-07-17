@@ -1,0 +1,93 @@
+# ============================================================
+#  🚀 自动部署到生产服务器
+#  触发方式: push 到 main 分支（排除文档变更）
+#           或手动在 GitHub Actions 页面触发
+# ============================================================
+name: Deploy to Server
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - '*.md'
+  workflow_dispatch:    # 支持手动触发
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      # ── 前端构建 ──
+      - name: 🔧 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 安装前端依赖 & 构建
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+        env:
+          CI: true
+
+      # ── SSH 配置 ──
+      - name: 🔑 配置 SSH 密钥
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # ── 文件同步 ──
+      - name: 📤 同步文件到服务器
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.agents/' \
+            --exclude='.claude/' \
+            --exclude='.superpowers/' \
+            --exclude='__pycache__/' \
+            --exclude='*.py[cod]' \
+            --exclude='.venv/' \
+            --exclude='venv/' \
+            --exclude='.pytest_cache/' \
+            --exclude='node_modules/' \
+            --exclude='frontend/' \
+            --exclude='tests/' \
+            --exclude='data/' \
+            --exclude='config.yaml' \
+            --exclude='.env' \
+            --exclude='.gitignore' \
+            --exclude='*.mp4' \
+            --exclude='*.mp3' \
+            --exclude='hyperframes-video/' \
+            --exclude='remotion-video/' \
+            --exclude='demo_30s.mp4' \
+            --exclude='tmp_gen.py' \
+            --exclude='video_maker.py' \
+            --exclude='pytest.ini' \
+            --exclude='slugs.json' \
+            --exclude='_all_collected.json' \
+            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/phosphene/
+
+      # ── 远程更新 & 重启 ──
+      - name: 🔄 安装依赖 & 重启服务
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd /opt/phosphene && \
+             source venv/bin/activate && \
+             pip install -r requirements.txt --quiet && \
+             sudo systemctl restart phosphene && \
+             echo '✅ 部署完成'"
