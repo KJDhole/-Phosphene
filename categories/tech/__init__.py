@@ -1,4 +1,4 @@
-"""
+﻿"""
 🔧 技术趋势分类 — v1 移植
 """
 
@@ -60,44 +60,27 @@ class TechCategory(BaseCategory):
 
     @property
     def system_prompt(self) -> str:
-        return """你是资深技术博主与技术趋势分析师，ID：AI热点观察。
-你的文章特点：
-- 深度分析技术趋势，有独特见解
-- 结构清晰，深入浅出
-- 结合具体案例或数据
-- 专业但不晦涩，技术圈读者爱看
-输出格式为 Markdown。"""
+        return """## 角色
+你是资深技术博主与技术趋势分析师，ID：AI热点观察。
+你长期追踪编程语言、框架演进、AI 技术和开源生态，对开发者心态和行业风向有独到洞察。
+你的文章被读者视为技术风向标，兼具深度与可读性。
+
+## 写作约束
+- 所有事实性论断必须源自采集数据，不可凭空编造数字、版本号或引用
+- 如果数据不足，标注「基于AI知识补充」而非假装有数据支撑
+- 涉及技术对比时客观中立，不贬低某一方
+- 代码示例必须可运行，不做伪代码""" + "\n\n" + """## 输出格式
+Markdown。主标题 #，章节标题 ##，代码块用 ` 包裹。"""
 
     def user_prompt_template(self, raw_data: dict) -> str:
-        from datetime import datetime, timezone, timedelta
-        BJT = timezone(timedelta(hours=8))
-        now = datetime.now(BJT)
-
-        summary_lines = []
-        for name, data in raw_data.items():
-            if data and not data.startswith("[采集失败"):
-                summary_lines.append(f"\n## {name}")
-                clean = data.strip()[:800]
-                summary_lines.append(clean)
-
-        material = "\n".join(summary_lines) or "（所有平台均采集失败，根据 AI 知识库自主创作）"
-
-        return f"""今天是 {now.strftime('%Y年%m月%d日 %H:%M')}。
-
-以下是今日技术圈的热门数据：
-
-{material}
-
-请完成以下任务：
-1. **趋势分析**：分析这些数据反映出的技术趋势（至少3个）
-2. **选题**：选择最有价值/最有话题性的一个角度
-3. **写作**：写一篇 1500-2000 字的技术博客，包括：
-   - 吸引人的标题和副标题
-   - 引言（为什么这个话题现在重要）
-   - 3-4 个核心观点或技术分析
-   - 实际应用场景或案例
-   - 未来展望与建议
-   - 标签（3-5个，用 # 号）
-4. 结尾署名：*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
-
-全文用 Markdown 格式。"""
+        return self._build_user_prompt(
+            domain_label="技术圈",
+            sections=[
+                {"title": "标题和副标题", "content": "吸引人、有信息量，反映文章核心观点"},
+                {"title": "引言", "content": "为什么这个话题现在重要？当前技术背景是什么？"},
+                {"title": "核心分析", "content": "3-4 个核心观点，每个观点结合一个具体案例或数据"},
+                {"title": "未来展望", "content": "对开发者/行业的影响与建议"},
+                {"title": "标签", "content": "3-5 个，如 #AI #开源 #编程"},
+            ],
+            raw_data=raw_data,
+        )

@@ -1,99 +1,104 @@
-import { Button, Space, message, Tooltip } from 'antd';
-import {
-  PlayCircleOutlined,
-  FastForwardOutlined,
-  StopOutlined,
-} from '@ant-design/icons';
+import { Button, Switch, message } from 'antd';
+import { PlayCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
-import { runCategory, runBatch, stopRun, fetchCategories } from '../api/client';
+import { useState } from 'react';
+import { fetchCategories, runBatch, runCategory, stopRun } from '../api/client';
 
 interface Props {
   selected: string[];
   isRunning: boolean;
+  onBeforeRun?: () => void;
   onRunStart: () => void;
 }
 
-export default function RunControls({ selected, isRunning, onRunStart }: Props) {
-  const runSingleMutation = useMutation({
-    mutationFn: () => {
-      if (selected.length === 1) return runCategory(selected[0]);
-      return runBatch(selected);
-    },
+function apiError(error: any, fallback: string) {
+  return error?.response?.data?.detail || error?.response?.data?.message || fallback;
+}
+
+export default function RunControls({ selected, isRunning, onBeforeRun, onRunStart }: Props) {
+  const [useScrapling, setUseScrapling] = useState(true);
+
+  const selectedMutation = useMutation({
+    mutationFn: () => (
+      selected.length === 1
+        ? runCategory(selected[0], useScrapling)
+        : runBatch(selected, useScrapling)
+    ),
     onSuccess: () => {
       onRunStart();
-      message.success('任务已启动');
+      message.success('生产任务已进入队列');
     },
-    onError: (err: any) => {
-      message.error(err?.response?.data?.message || '启动失败');
-    },
+    onError: (error) => message.error(apiError(error, '启动失败')),
   });
 
-  const runAllMutation = useMutation({
+  const allMutation = useMutation({
     mutationFn: async () => {
-      const cats = await fetchCategories();
-      return runBatch(cats.map((c) => c.name));
+      const categories = await fetchCategories();
+      return runBatch(categories.map((category) => category.name), useScrapling);
     },
     onSuccess: () => {
       onRunStart();
-      message.success('全部任务已启动');
+      message.success('全部分类已进入生产队列');
     },
-    onError: (err: any) => {
-      message.error(err?.response?.data?.message || '启动失败');
-    },
+    onError: (error) => message.error(apiError(error, '启动失败')),
   });
 
   const stopMutation = useMutation({
     mutationFn: stopRun,
-    onSuccess: () => message.success('已停止'),
-    onError: (err: any) => {
-      message.error(err?.response?.data?.message || '停止失败');
-    },
+    onSuccess: () => message.success('已发出停止请求'),
+    onError: (error) => message.error(apiError(error, '停止失败')),
   });
 
+  const pending = selectedMutation.isPending || allMutation.isPending;
+
   return (
-    <Space>
-      <Tooltip title={selected.length === 0 ? '请先选择分类' : '运行选中的分类'}>
+    <div className="run-controls">
+      <div className="collection-mode">
+        <div>
+          <span className="control-label">采集策略</span>
+          <strong>{useScrapling ? '浏览器增强采集' : 'HTTP 直连采集'}</strong>
+          <small>{useScrapling ? '对反爬页面进行渲染，耗时更长' : '速度更快，可能遗漏动态页面'}</small>
+        </div>
+        <Switch checked={useScrapling} onChange={setUseScrapling} disabled={isRunning} />
+      </div>
+
+      <div className="run-action-row">
+        {isRunning ? (
+          <Button
+            danger
+            size="large"
+            icon={<StopOutlined />}
+            loading={stopMutation.isPending}
+            onClick={() => stopMutation.mutate()}
+          >
+            停止当前生产
+          </Button>
+        ) : (
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlayCircleOutlined />}
+            disabled={selected.length === 0}
+            loading={pending}
+            onClick={() => {
+              onBeforeRun?.();
+              selectedMutation.mutate();
+            }}
+          >
+            开始生产 {selected.length > 0 ? `· ${selected.length} 个分类` : ''}
+          </Button>
+        )}
         <Button
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          disabled={selected.length === 0 || isRunning}
-          loading={runSingleMutation.isPending}
-          onClick={() => runSingleMutation.mutate()}
-          style={{
-            background: 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)',
-            border: 'none',
-            boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+          type="text"
+          disabled={isRunning || pending}
+          onClick={() => {
+            onBeforeRun?.();
+            allMutation.mutate();
           }}
         >
-          运行选中 ({selected.length})
+          运行全部分类
         </Button>
-      </Tooltip>
-      <Button
-        icon={<FastForwardOutlined />}
-        disabled={isRunning}
-        onClick={() => runAllMutation.mutate()}
-        style={{
-          borderColor: '#7C3AED',
-          color: '#7C3AED',
-          background: isRunning ? undefined : 'rgba(124, 58, 237, 0.06)',
-        }}
-      >
-        运行全部
-      </Button>
-      <Button
-        danger
-        icon={<StopOutlined />}
-        disabled={!isRunning}
-        onClick={() => stopMutation.mutate()}
-        className={isRunning ? 'btn-running' : ''}
-        style={{
-          background: isRunning ? 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' : undefined,
-          borderColor: isRunning ? '#EF4444' : '#D9D9D9',
-          color: isRunning ? '#fff' : undefined,
-        }}
-      >
-        停止
-      </Button>
-    </Space>
+      </div>
+    </div>
   );
 }

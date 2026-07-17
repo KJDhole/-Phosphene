@@ -15,7 +15,6 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 REMOTION_DIR = Path(__file__).parent.parent / "remotion-video"
 
@@ -84,6 +83,10 @@ def _parse_structured(script_text: str) -> list:
                 text = m2.group(1).strip()
                 if text:
                     current_lines.append(text)
+            elif current_lines and re.match(r'^\s{2,}\S+', line):
+                continuation = line.strip()
+                if continuation:
+                    current_lines.append(continuation)
 
     if current_scene is not None and current_lines:
         current_scene["lines"] = current_lines
@@ -92,79 +95,130 @@ def _parse_structured(script_text: str) -> list:
 
 
 # 旧格式 → 视觉类型映射（按场景位置）
+# ── 默认视觉类型映射 ──
 _DEFAULT_VISUAL_TYPES = [
     "explode", "number", "text", "pop", "text", "tag", "chain", "ending"
 ]
 
+# ── 旧格式解析跳过模式 ──
+_SKIP_SEC_PATTERNS = [
+    r'总时长', r'风格', r'目标', r'适用平台',
+    r'脚本设计思路', r'制作备注', r'^[0-9.]+$',
+    r'以下是完整', r'完整的脚本方案',
+]
 
-def _parse_legacy(script_text: str) -> list:
-    """解析旧格式（长文分镜脚本）"""
-    import re as _re
 
-    lines = script_text.split("\n")
-
-    # 找到第一个 #### 或 --- 作为实际内容的开始
-    content_start = 0
+def _find_content_start(lines: list[str]) -> int:
+    """找到旧格式脚本的实际内容起始行"""
     for idx, line in enumerate(lines):
         stripped = line.strip()
         if stripped.startswith("####") or stripped.startswith("---"):
-            content_start = idx
-            break
-        # 跳过 AI 开场白（"好的，没问题！" 行）
+            return idx
         if re.match(r'^(好的|没问题|当然|首先)', stripped):
-            content_start = idx + 1
+            return idx + 1
+    return 0
 
-    lines = lines[content_start:]
 
-    # 按 #### 标题、--- 分隔线、**制作备注** 分节
+def _split_sections(lines: list[str]) -> list[tuple[str, str]]:
+    """按 #### 标题 / --- 分隔线切分节"""
+    import re as _re
     sections = []
     current = []
     section_headers = []
-
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("####") or stripped.startswith("---"):
             if current:
                 sections.append((section_headers[-1] if section_headers else "", "\n".join(current)))
                 current = []
-            # 提取标题（如 "#### 【0:00-0:05】开场钩子"）
             header = _re.sub(r'^#{1,4}\s*|【[^】]+】', '', stripped).strip()
             section_headers.append(header)
         elif stripped and not stripped.startswith("**制作"):
             current.append(stripped)
-
     if current:
         sections.append((section_headers[-1] if section_headers else "", "\n".join(current)))
+    return sections
 
-    # 跳过纯元信息/备注节
-    skip_sec_patterns = [
-        r'总时长', r'风格', r'目标', r'适用平台',
-        r'脚本设计思路', r'制作备注', r'^[0-9.]+$',
-        r'以下是完整', r'完整的脚本方案',
-    ]
 
-    # 跳过 header 为 --- 或空且 body 短于 15 字的节
-    def _is_skip_section(header: str, body: str) -> bool:
-        if len(body.strip()) < 15:
+def _is_skip_section(header: str, body: str) -> bool:
+    """判断是否跳过该节（元信息/备注/空内容）"""
+    if len(body.strip()) < 15:
+        return True
+    if header in ('---', '') and not re.search(r'(?:口播|文案)', body):
+        return True
+    for pat in _SKIP_SEC_PATTERNS:
+        if re.search(pat, header + body[:60]):
             return True
-        if header in ('---', '') and not _re.search(r'(?:口播|文案)', body):
-            return True
-        for pat in skip_sec_patterns:
-            if _re.search(pat, header + body[:60]):
-                return True
-        return False
+    return False
 
-    def _clean_text(raw: str) -> str:
-        """去除 markdown 标记和舞台指示，返回纯文本"""
-        text = _re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', raw)          # **加粗**
-        text = _re.sub(r'^\s*\*\s+', '', text)                         # 行首 *
-        text = _re.sub(r'^#{1,4}\s+', '', text)                        # ### 标记
-        text = _re.sub(r'【[\d:→\-\[\]\.]+】', '', text)               # 【0:00-0:05】
-        text = _re.sub(r'^\*{0,2}(?:口播|画面|文案|字幕)\*{0,2}[：:（(]', '', text)  # 口播：
-        text = _re.sub(r'[（(](?:画面|口播|字幕|建议|备注|数据)[）)]', '', text)       # (画面)
-        text = _re.sub(r'\s{2,}', ' ', text)                           # 多余空白
-        text = text.strip().strip('，。！？；、：').strip()
-        return text
+
+def _clean_text(raw: str) -> str:
+    """去除 markdown 标记和舞台指示，返回纯文本"""
+    text = re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', raw)          # **加粗**
+    text = re.sub(r'^\s*\*\s+', '', text)                         # 行首 *
+    text = re.sub(r'^#{1,4}\s+', '', text)                        # ### 标记
+    text = re.sub(r'【[\d:→\-\[\]\.]+】', '', text)               # 【0:00-0:05】
+    text = re.sub(r'^\*{0,2}(?:口播|画面|文案|字幕)\*{0,2}[：:（(]', '', text)  # 口播：
+    text = re.sub(r'[（(](?:画面|口播|字幕|建议|备注|数据)[）)]', '', text)       # (画面)
+    text = re.sub(r'\s{2,}', ' ', text)                           # 多余空白
+    text = text.strip().strip('，。！？；、：').strip()
+    return text
+
+
+def _extract_text_from_section(body: str) -> str:
+    """从一节文本中提取口播文案"""
+    body_lines = body.split("\n")
+    for li, line in enumerate(body_lines):
+        m = re.match(r'.*?口播.*?(?:[：:]\s*(.+))?', line)
+        if m:
+            if m.group(1):
+                candidate = _clean_text(m.group(1))
+                if len(candidate) > 5:
+                    return candidate
+            else:
+                if li + 1 < len(body_lines):
+                    next_line = body_lines[li + 1].strip().strip('"「」""')
+                    if next_line and len(next_line) > 5:
+                        return _clean_text(next_line)
+    # 没有口播标记，找第一个有意义的句子
+    for line in body.split("\n"):
+        if (len(line) > 8
+                and not re.match(r'^\s*#|\-\-\-|\*{2}$|【', line)
+                and '画面' not in line[:8]
+                and '制作' not in line[:8]):
+            candidate = _clean_text(line)
+            if len(candidate) > 5:
+                return candidate
+    return ""
+
+
+def _split_text_lines(text: str) -> list[str]:
+    """将一段文案按 15 字/CJK 智能分行"""
+    import re as _re
+    parts = _re.split(r'[，。！？；、]', text)
+    lines_out = []
+    for p in parts:
+        p = p.strip(' "\'「」""（）()\u3000')
+        if not p or len(p) < 2:
+            continue
+        while len(p) > 15:
+            split_at = max(p.rfind('，', 0, 15), p.rfind(' ', 0, 15),
+                           p.rfind('、', 0, 15), 12)
+            if split_at <= 0 or split_at > 15:
+                split_at = 15
+            lines_out.append(p[:split_at])
+            p = p[split_at:]
+        if p:
+            lines_out.append(p)
+    return lines_out
+
+
+def _parse_legacy(script_text: str) -> list:
+    """解析旧格式（长文分镜脚本）"""
+    lines = script_text.split("\n")
+    content_start = _find_content_start(lines)
+    lines = lines[content_start:]
+    sections = _split_sections(lines)
 
     scenes = []
     for i, (header, body) in enumerate(sections[:10]):
@@ -172,68 +226,18 @@ def _parse_legacy(script_text: str) -> list:
             continue
         if len(scenes) >= 8:
             break
-
-        # 提取文本：优先找口播行
-        text = ""
-        body_lines = body.split("\n")
-        for li, line in enumerate(body_lines):
-            # 匹配 **口播：**、**（口播）** 等多种格式
-            m = _re.match(r'.*?口播.*?(?:[：:]\s*(.+))?', line)
-            if m:
-                if m.group(1):
-                    # 有冒号：**口播：** 文字
-                    candidate = _clean_text(m.group(1))
-                    if len(candidate) > 5:
-                        text = candidate
-                        break
-                else:
-                    # 无冒号：**（口播）**，文字在下一行
-                    if li + 1 < len(body_lines):
-                        next_line = body_lines[li + 1].strip().strip('"「」""')
-                        if next_line and len(next_line) > 5:
-                            text = _clean_text(next_line)
-                            break
-
+        text = _extract_text_from_section(body)
         if not text:
-            # 找第一个有意义的句子
-            for line in body.split("\n"):
-                if (len(line) > 8
-                        and not _re.match(r'^\s*#|\-\-\-|\*{2}$|【', line)
-                        and '画面' not in line[:8]
-                        and '制作' not in line[:8]):
-                    candidate = _clean_text(line)
-                    if len(candidate) > 5:
-                        text = candidate
-                        break
-
-        if text:
-            parts = _re.split(r'[，。！？；、]', text)
-            lines_out = []
-            for p in parts:
-                p = p.strip(' "\'「」""（）()\u3000')
-                if not p or len(p) < 2:
-                    continue
-                # CJK-safe 分行：每行 ≤15 中文字符
-                while len(p) > 15:
-                    # 在标点或空格处分，否则硬切
-                    split_at = max(p.rfind('，', 0, 15), p.rfind(' ', 0, 15),
-                                   p.rfind('、', 0, 15), 12)
-                    if split_at <= 0 or split_at > 15:
-                        split_at = 15
-                    lines_out.append(p[:split_at])
-                    p = p[split_at:]
-                if p:
-                    lines_out.append(p)
-
-            if lines_out:
-                scenes.append({
-                    "id": len(scenes),
-                    "name": header or f"场景{len(scenes)}",
-                    "visualType": _DEFAULT_VISUAL_TYPES[len(scenes)] if len(scenes) < len(_DEFAULT_VISUAL_TYPES) else "text",
-                    "gradient": "a1",
-                    "lines": lines_out[:3],
-                })
-
+            continue
+        lines_out = _split_text_lines(text)
+        if lines_out:
+            scenes.append({
+                "id": len(scenes),
+                "name": header or f"场景{len(scenes)}",
+                "visualType": _DEFAULT_VISUAL_TYPES[len(scenes)] if len(scenes) < len(_DEFAULT_VISUAL_TYPES) else "text",
+                "gradient": "a1",
+                "lines": lines_out[:3],
+            })
     return scenes
 
 
@@ -258,8 +262,7 @@ def generate_tts(scenes: list, slug: str, work_dir: Path, voice: str = "zh-CN-Xi
                 await communicate.save(str(out))
             except Exception as e:
                 if attempt < 3:
-                    import time as _time
-                    _time.sleep(2 * attempt)
+                    await asyncio.sleep(2 * attempt)
                     await _gen(out, txt, attempt + 1)
                 else:
                     raise RuntimeError(
@@ -307,8 +310,14 @@ def render_video(
 
     props_json = json.dumps(props, ensure_ascii=False)
 
+    executable = REMOTION_DIR / "node_modules" / ".bin" / (
+        "remotion.cmd" if os.name == "nt" else "remotion"
+    )
+    if not executable.exists():
+        raise RuntimeError("Remotion 依赖未安装，请先在 remotion-video 目录执行 npm ci")
+
     cmd = [
-        "npx.cmd", "remotion", "render",
+        str(executable), "render",
         str(REMOTION_DIR / "src" / "index.ts"),
         "GenericVideo",
         str(output_path),
@@ -365,6 +374,12 @@ def generate_video(
 
     if not scenes:
         raise ValueError("No scenes found in video_script.md")
+    if len(scenes) != 8:
+        raise ValueError(f"视频脚本必须包含 8 个场景，当前解析到 {len(scenes)} 个")
+    allowed_types = {"explode", "number", "text", "pop", "tag", "chain", "ending"}
+    invalid_types = [scene["visualType"] for scene in scenes if scene["visualType"] not in allowed_types]
+    if invalid_types:
+        raise ValueError(f"不支持的视觉类型: {', '.join(invalid_types)}")
 
     _progress(0.1, f"已解析 {len(scenes)} 个场景")
 
@@ -374,7 +389,10 @@ def generate_video(
 
         # 3. 生成 TTS
         _progress(0.2, "正在生成配音 (1/8)...")
-        audio_files, audio_frames = generate_tts(scenes, slug, work_dir)
+        from core.config import load_config
+        voice = load_config().get("video", {}).get("audio_voice", "zh-CN-XiaoxiaoNeural")
+        asset_key = f"{category}_{slug}"
+        audio_files, audio_frames = generate_tts(scenes, asset_key, work_dir, voice=voice)
         _progress(0.4, "配音生成完成")
 
         # 4. 拷贝音频到 Remotion public/

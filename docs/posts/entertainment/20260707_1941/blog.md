@@ -45,6 +45,6 @@
 
 ---
 
-*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
+*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: contact@example.com*
 
 #电影 #综艺 #短剧 #音乐 #娱乐趋势

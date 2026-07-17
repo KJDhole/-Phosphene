@@ -26,7 +26,7 @@ export default function FormatTabs({ formats, activeKey, onChange }: Props) {
       </span>
     ),
     children: (
-      <div className="glass" style={{ padding: 24, borderRadius: 12, marginTop: 4 }}>
+      <div className="article-canvas" style={{ marginTop: 4 }}>
         <MarkdownRenderer content={content} />
       </div>
     ),
@@ -37,7 +37,7 @@ export default function FormatTabs({ formats, activeKey, onChange }: Props) {
       activeKey={activeKey}
       onChange={onChange}
       items={items}
-      style={{ borderRadius: 12 }}
+      style={{ borderRadius: 0 }}
     />
   );
 }

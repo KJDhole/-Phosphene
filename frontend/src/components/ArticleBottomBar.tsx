@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button, Space } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -21,8 +21,15 @@ interface Props {
  *
  * 固定在视口底部，滚动超过阈值后滑入显示。
  * 包含：返回 / 标题 / 复制 / 下载 / 回到顶部。
- * z-index 设在 50，低于 Layout Header(100) 但高于普通内容，
- * 避免被其他毛玻璃元素遮挡。
+ *
+ * ## z-index 策略
+ * - Layout Header: 100（最顶层，含操作按钮）
+ * - 本组件:       80（介于 Header 与内容之间）
+ * - 侧边栏:       auto（正常流）
+ * - 普通内容:     auto
+ *
+ * 使用 isolation: isolate 创建独立堆叠上下文，
+ * 采用高对比深色工具条，与审核室底部操作区保持一致。
  */
 export default function ArticleBottomBar({
   title,
@@ -32,28 +39,43 @@ export default function ArticleBottomBar({
 }: Props) {
   const navigate = useNavigate();
   const [visible, setVisible] = useState(false);
+  const [atBottom, setAtBottom] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setVisible(window.scrollY > threshold);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // 初始化检查
-    return () => window.removeEventListener('scroll', handleScroll);
+  const handleScroll = useCallback(() => {
+    const scrollY = window.scrollY;
+    setVisible(scrollY > threshold);
+    // 检测是否接近底部（用于决定是否显示「回到顶部」提示）
+    const docHeight = document.documentElement.scrollHeight;
+    const winHeight = window.innerHeight;
+    setAtBottom(scrollY + winHeight >= docHeight - 60);
   }, [threshold]);
 
-  const scrollToTop = () => {
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
+
+  const goBack = useCallback(() => {
+    navigate('/history');
+  }, [navigate]);
 
   return (
     <div
       style={{
         position: 'fixed',
         bottom: 0,
-        left: 220, /* Sidebar 宽度 */
-        right: 0,
-        zIndex: 50,
+        left: 'calc(var(--sidebar) + 48px)',
+        right: 48,
+        zIndex: 80,
+        isolation: 'isolate',
+        willChange: 'transform',
+
+        /* 布局 */
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -61,28 +83,27 @@ export default function ArticleBottomBar({
         gap: 12,
         minHeight: 56,
 
-        /* Glassmorphism */
-        background: 'rgba(255, 255, 255, 0.78)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(239, 231, 252, 0.8)',
-        boxShadow: '0 -4px 24px rgba(124, 58, 237, 0.1)',
+        background: 'rgba(18, 21, 28, 0.96)',
+        color: '#FCFBF8',
+        border: '1px solid #343943',
+        boxShadow: '0 18px 50px rgba(18, 21, 28, 0.24)',
 
-        /* 动画 */
-        transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease',
+        /* 滑入动画 */
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
         transform: visible ? 'translateY(0)' : 'translateY(100%)',
         opacity: visible ? 1 : 0,
-        pointerEvents: visible ? 'auto' as const : 'none' as const,
+        pointerEvents: visible ? ('auto' as const) : ('none' as const),
       }}
     >
       {/* 左侧：返回 */}
       <Button
         icon={<ArrowLeftOutlined />}
-        onClick={() => navigate('/history')}
+        onClick={goBack}
         style={{
-          borderColor: '#EFE7FC',
-          color: '#64748B',
-          borderRadius: 8,
+          borderColor: '#555B67',
+          color: '#FCFBF8',
+          borderRadius: 3,
+          background: 'transparent',
           flexShrink: 0,
           display: 'inline-flex',
           alignItems: 'center',
@@ -99,7 +120,7 @@ export default function ArticleBottomBar({
           minWidth: 0,
           fontSize: 14,
           fontWeight: 500,
-          color: '#1E1B4B',
+          color: '#FCFBF8',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -113,7 +134,7 @@ export default function ArticleBottomBar({
       </span>
 
       {/* 右侧：操作按钮 */}
-      <Space size={8} style={{ flexShrink: 0 }}>
+      <Space size={6} style={{ flexShrink: 0 }}>
         <Button
           icon={<CopyOutlined />}
           onClick={(e) => {
@@ -122,9 +143,10 @@ export default function ArticleBottomBar({
           }}
           size="small"
           style={{
-            borderColor: '#EFE7FC',
-            color: '#7C3AED',
-            borderRadius: 8,
+            borderColor: '#555B67',
+            color: '#FCFBF8',
+            borderRadius: 3,
+            background: 'transparent',
           }}
           title="复制内容"
         />
@@ -137,9 +159,9 @@ export default function ArticleBottomBar({
           size="small"
           type="primary"
           style={{
-            background: 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)',
+            background: '#2457FF',
             border: 'none',
-            borderRadius: 8,
+            borderRadius: 3,
           }}
           title="下载 .md"
         />
@@ -148,9 +170,11 @@ export default function ArticleBottomBar({
           onClick={scrollToTop}
           size="small"
           style={{
-            borderColor: '#EFE7FC',
-            color: '#94A3B8',
-            borderRadius: 8,
+            borderColor: '#555B67',
+            color: atBottom ? '#B6E93D' : '#858B98',
+            background: 'transparent',
+            borderRadius: 3,
+            transition: 'color 0.2s ease',
           }}
           title="回到顶部"
         />

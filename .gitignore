@@ -7,18 +7,32 @@ venv/
 *.pyc
 *.pyo
 .pytest_cache/
+pytest-of-root/
 .mypy_cache/
 .ruff_cache/
+*.tsbuildinfo
+pip-*
 
 # ── 环境变量 / 敏感配置 ──
 .env
 .env.*
 config.local.yaml
 *.key
+*.pem
+*.p12
+*.pfx
+.npmrc
+.pypirc
+credentials*.json
+service-account*.json
+id_rsa*
+id_ed25519*
+.claude/settings.local.json
 
 # ── 临时运行时数据 ──
 *.db
 *.log
+logs/
 _collected*.json
 slugs.json
 temp/
@@ -31,10 +45,10 @@ tmp/
 *.avi
 *.wav
 *.mp3
-hyperframes-video/*.mp4
 hyperframes-video/audio_*.mp3
 hyperframes-video/ponytail/audio_*.mp3
 hyperframes-video/ponytail/*.mp4
+hyperframes-video/
 demo_30s.mp4
 
 # ── IDE / 编辑器 ──

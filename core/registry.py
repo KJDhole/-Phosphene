@@ -4,14 +4,13 @@
 
 from __future__ import annotations
 import importlib
-import pkgutil
 from pathlib import Path
 from typing import Optional
 
 from core.base_category import BaseCategory, CategoryInfo
-from rich.console import Console
+from core.console import FailureSafeConsole
 
-CONSOLE = Console()
+CONSOLE = FailureSafeConsole()
 
 _registry: dict[str, BaseCategory] = {}
 

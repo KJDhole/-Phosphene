@@ -60,6 +60,6 @@
 
 ---
 
-*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
+*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: contact@example.com*
 
 #A股 #金融投资 #股市分析 #宏观经济 #资产配置

@@ -1,4 +1,4 @@
-"""
+﻿"""
 🏢 商业分类 — 大公司动态、创业、商业模式
 """
 
@@ -57,44 +57,28 @@ class BusinessCategory(BaseCategory):
 
     @property
     def system_prompt(self) -> str:
-        return """你是资深商业分析师与财经记者，ID：商业观察。
-你的文章特点：
-- 深度剖析商业模式和行业逻辑
-- 结合具体公司案例，数据翔实
-- 有批判性思维，不盲目跟风
-- 提供可操作的商业洞察
-- 中英文商业术语穿插使用，专业不晦涩
-输出格式为 Markdown。"""
+        return """## 角色
+你是资深商业分析师与财经记者，ID：商业观察。
+你擅长剖析商业模式和行业逻辑，对大公司战略、创业投资有深刻洞察。
+你的文章被创业者和管理者视为决策参考。
+
+## 写作约束
+- 分析商业模式必须有明确的逻辑链条（收入模型→成本结构→竞争壁垒）
+- 公司数据（营收、用户数、估值等）必须源自采集数据，不可编造
+- 不做笼统的「看好/看衰」判断，而是说清楚「在什么条件下成立」
+- 中英文商业术语穿插使用时需自然，不生搬硬套""" + "\n\n" + """## 输出格式
+Markdown。结构清晰，每个论点配一个案例或数据点。"""
 
     def user_prompt_template(self, raw_data: dict) -> str:
-        from datetime import datetime, timezone, timedelta
-        BJT = timezone(timedelta(hours=8))
-        now = datetime.now(BJT)
-
-        summary_lines = []
-        for name, data in raw_data.items():
-            if data and not data.startswith("[采集失败"):
-                summary_lines.append(f"\n## {name}")
-                summary_lines.append(data.strip()[:800])
-
-        material = "\n".join(summary_lines) or "（所有平台均采集失败，根据 AI 知识库自主创作）"
-
-        return f"""今天是 {now.strftime('%Y年%m月%d日 %H:%M')}。
-
-以下是今日商业领域热点数据：
-
-{material}
-
-请完成以下任务：
-1. **商业动态**：总结今日最值得关注的商业事件
-2. **深度选题**：选择最有分析价值的一个话题（如某公司财报/战略调整/行业变局）
-3. **写作**：写一篇 1500-2000 字的商业分析文章，包括：
-   - 吸引人的标题和副标题
-   - 事件背景（时间线/关键人物）
-   - 商业模式分析（盈利模式/竞争壁垒/增长逻辑）
-   - 行业影响与趋势判断
-   - 对创业者和从业者的启示
-   - 标签（3-5个，如 #互联网 #创业 #投资）
-4. 结尾署名：*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
-
-全文用 Markdown 格式。"""
+        return self._build_user_prompt(
+            domain_label="商业",
+            sections=[
+                {"title": "标题和副标题", "content": "直接点明商业事件核心"},
+                {"title": "事件背景", "content": "时间线、关键人物、事件起因"},
+                {"title": "商业模式分析", "content": "盈利模式 / 竞争壁垒 / 增长逻辑"},
+                {"title": "行业影响", "content": "对行业格局的冲击和趋势判断"},
+                {"title": "启示", "content": "对创业者和从业者的可操作建议"},
+                {"title": "标签", "content": "3-5 个，如 #互联网 #创业 #投资"},
+            ],
+            raw_data=raw_data,
+        )

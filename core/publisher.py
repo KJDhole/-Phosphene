@@ -1,100 +1,90 @@
-"""
-发布器 — 支持本地保存和 GitHub Pages 自动发布
-"""
+"""Explicit publishing adapter for local output and GitHub Pages."""
 
 from __future__ import annotations
-import os
-import re
-import subprocess as sp
-import shutil
-from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from rich.console import Console
 
-# 北京时间
+import re
+import shutil
+import subprocess
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from core.console import FailureSafeConsole
+
 BJT = timezone(timedelta(hours=8))
 ROOT = Path(__file__).parent.parent
-CONSOLE = Console()
+CONSOLE = FailureSafeConsole()
 
 
 class Publisher:
-    """发布文章到 GitHub Pages"""
-
     def __init__(self, config: dict):
-        pub = config.get("publish", {})
-        self.mode = pub.get("mode", "local")
-        self.gh = pub.get("github_pages", {})
-        self.output_dir = ROOT / config["output"]["output_dir"]
+        publish_config = config.get("publish", {})
+        self.mode = publish_config.get("mode", "local")
+        self.gh = publish_config.get("github_pages", {})
+        self.output_dir = (ROOT / config["output"]["output_dir"]).resolve()
 
-    def publish(self, blog: str, slug: str) -> dict:
-        """执行发布"""
+    def publish(self, blog: str, category: str, slug: str) -> dict:
+        """Publish one exact category/slug pair."""
+        article_dir = self.output_dir / "posts" / category / slug
         if self.mode == "local":
-            CONSOLE.print(f"\n[green]📂 文章已保存至: {self.output_dir}/posts/{slug}/[/]")
-            CONSOLE.print(f"   [dim]部署到 GitHub Pages 请运行: python main.py --deploy[/]")
-            return {"status": "local", "published": 1, "errors": 0}
-
+            CONSOLE.print(f"\n[green]📂 草稿已保存至: {article_dir}[/]")
+            return {"status": "local", "published": 0, "errors": 0}
         if self.mode == "github-pages":
-            return self._publish_gh_pages(blog, slug)
+            return self._publish_gh_pages(blog, category, slug)
+        return {"status": "error", "published": 0, "errors": 1}
 
-        CONSOLE.print(f"  [yellow]⚠️  未知发布模式: {self.mode}[/]")
-        return {"status": "unknown", "published": 0, "errors": 1}
-
-    def _publish_gh_pages(self, blog: str, slug: str) -> dict:
-        """推送到 GitHub Pages 仓库"""
+    def _publish_gh_pages(self, blog: str, category: str, slug: str) -> dict:
         if not self.gh.get("enabled"):
-            CONSOLE.print("  [yellow]⏭️  GitHub Pages 发布未启用[/]")
             return {"status": "skipped", "published": 0, "errors": 0}
 
-        repo_path = Path(self.gh.get("local_repo_path", ""))
-        if not repo_path.exists():
-            CONSOLE.print(f"  [red]❌ 本地仓库不存在: {repo_path}[/]")
+        repo_value = str(self.gh.get("local_repo_path", "")).strip()
+        repo_path = Path(repo_value).expanduser().resolve() if repo_value else None
+        if not repo_path or not (repo_path / ".git").exists():
+            CONSOLE.print("  [red]❌ GitHub Pages 本地仓库无效[/]")
             return {"status": "error", "published": 0, "errors": 1}
 
-        target = repo_path / "_posts"
-        target.mkdir(parents=True, exist_ok=True)
-
-        src = self.output_dir / "posts" / slug / "blog.md"
+        src = self.output_dir / "posts" / category / slug / "blog.md"
         if not src.exists():
             CONSOLE.print(f"  [red]❌ 博客文件不存在: {src}[/]")
             return {"status": "error", "published": 0, "errors": 1}
 
-        # Jekyll 格式文件名
-        title = "untitled"
-        for line in blog.split("\n"):
-            m = re.match(r'^#\s+(.+)$', line.strip())
-            if m and not line.startswith("##"):
-                title = m.group(1).strip()[:30]
-                break
-        safe_title = re.sub(r'[^\w\u4e00-\u9fff-]', '-', title).strip('-')
+        target = repo_path / "_posts"
+        target.mkdir(parents=True, exist_ok=True)
+        title_match = re.search(r"(?m)^#\s+(.+)$", blog)
+        title = title_match.group(1).strip() if title_match else "untitled"
+        safe_title = re.sub(r"[^\w\u4e00-\u9fff-]", "-", title[:50]).strip("-")
         today = datetime.now(BJT).strftime("%Y-%m-%d")
-        jekyll_name = f"{today}-{safe_title}.md"
-        dst = target / jekyll_name
-
-        shutil.copy2(str(src), str(dst))
-        CONSOLE.print(f"  [green]📋 已复制: {jekyll_name}[/]")
+        destination = target / f"{today}-{category}-{safe_title}.md"
+        shutil.copy2(src, destination)
 
         try:
-            cwd = os.getcwd()
-            os.chdir(str(repo_path))
-            sp.run(["git", "add", "_posts/"], capture_output=True, check=True)
-            result = sp.run(["git", "diff", "--cached", "--quiet"], capture_output=True)
-            if result.returncode != 0:
-                commit_msg = self.gh.get("commit_message", "🤖 AI 自动发布: {title} [{date}]")
-                msg = commit_msg.format(title=title[:30], date=today)
-                sp.run(["git", "commit", "-m", msg], capture_output=True, check=True)
-                CONSOLE.print(f"  [green]📦 已提交: {msg}[/]")
-                sp.run(["git", "push", "origin", self.gh.get("branch", "main")],
-                       capture_output=True, check=True)
-                CONSOLE.print(f"  [green]🚀 已推送至 GitHub![/]")
-            else:
-                CONSOLE.print("  [yellow]⏭️  没有新变更[/]")
-            os.chdir(cwd)
-        except sp.CalledProcessError as e:
-            stderr = e.stderr.decode() if e.stderr else ""
-            CONSOLE.print(f"  [red]❌ Git 操作失败: {stderr[:200]}[/]")
-            return {"status": "error", "published": 0, "errors": 1}
-        except Exception as e:
-            CONSOLE.print(f"  [red]❌ 发布异常: {e}[/]")
+            self._git(repo_path, "add", str(destination.relative_to(repo_path)))
+            diff = subprocess.run(
+                ["git", "diff", "--cached", "--quiet"],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if diff.returncode == 0:
+                return {"status": "unchanged", "published": 0, "errors": 0}
+
+            template = self.gh.get("commit_message", "AI 内容发布: {title} [{date}]")
+            message = template.format(title=title[:30], date=today)
+            self._git(repo_path, "commit", "-m", message)
+            self._git(repo_path, "push", "origin", self.gh.get("branch", "main"), timeout=120)
+            return {"status": "success", "published": 1, "errors": 0}
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            detail = getattr(exc, "stderr", "") or str(exc)
+            CONSOLE.print(f"  [red]❌ Git 发布失败: {detail[:300]}[/]")
             return {"status": "error", "published": 0, "errors": 1}
 
-        return {"status": "success", "published": 1, "errors": 0}
+    @staticmethod
+    def _git(repo_path: Path, *args: str, timeout: int = 30) -> None:
+        subprocess.run(
+            ["git", *args],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+        )
