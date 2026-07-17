@@ -32,7 +32,7 @@ jobs:
       - name: 📦 安装前端依赖 & 构建
         run: |
           cd frontend
-          npm ci
+          npm install
           npm run build
         env:
           CI: true
