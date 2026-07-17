@@ -1,6 +1,6 @@
 # ============================================================
 #  🚀 自动部署到生产服务器
-#  触发方式: push 到 main 分支（排除文档变更）
+#  触发方式: push 到 master 分支（排除文档变更）
 #           或手动在 GitHub Actions 页面触发
 # ============================================================
 name: Deploy to Server
@@ -44,45 +44,72 @@ jobs:
           echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          echo "SSH_KEY_FINGERPRINT=$(ssh-keygen -lf ~/.ssh/deploy_key -E sha256 2>/dev/null | awk '{print $2}')" >> $GITHUB_ENV
 
-      # ── 文件同步 ──
+      # ── 测试 SSH 连接 ──
+      - name: 🔌 测试 SSH 连接
+        run: |
+          echo "连接服务器 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PORT }}..."
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=10 \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "echo 'SSH_OK'"
+          echo "✅ SSH 连接成功"
+
+      # ── 确保目标目录存在 ──
+      - name: 📁 确保目标目录存在
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "mkdir -p /opt/phosphene/data /opt/phosphene/web/static"
+          echo "✅ 目标目录已就绪"
+
+      # ── 文件同步（tar over SSH） ──
       - name: 📤 同步文件到服务器
         run: |
-          rsync -avz --delete \
-            -e "ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key" \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='.agents/' \
-            --exclude='.claude/' \
-            --exclude='.superpowers/' \
-            --exclude='__pycache__/' \
+          echo "正在打包并传输文件..."
+          SSH_CMD="ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          REMOTE="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+
+          tar cf - \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=.agents \
+            --exclude=.claude \
+            --exclude=.superpowers \
+            --exclude='__pycache__' \
             --exclude='*.py[cod]' \
-            --exclude='.venv/' \
-            --exclude='venv/' \
-            --exclude='.pytest_cache/' \
-            --exclude='node_modules/' \
-            --exclude='frontend/' \
-            --exclude='tests/' \
-            --exclude='data/' \
-            --exclude='config.yaml' \
-            --exclude='.env' \
-            --exclude='.gitignore' \
+            --exclude=.venv \
+            --exclude=venv \
+            --exclude=.pytest_cache \
+            --exclude=node_modules \
+            --exclude=frontend \
+            --exclude=tests \
+            --exclude=data \
+            --exclude=config.yaml \
+            --exclude=.env \
+            --exclude=.gitignore \
             --exclude='*.mp4' \
             --exclude='*.mp3' \
-            --exclude='hyperframes-video/' \
-            --exclude='remotion-video/' \
-            --exclude='demo_30s.mp4' \
-            --exclude='tmp_gen.py' \
-            --exclude='video_maker.py' \
-            --exclude='pytest.ini' \
-            --exclude='slugs.json' \
-            --exclude='_all_collected.json' \
-            ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/phosphene/
+            --exclude=hyperframes-video \
+            --exclude=remotion-video \
+            --exclude=demo_30s.mp4 \
+            --exclude=tmp_gen.py \
+            --exclude=video_maker.py \
+            --exclude=pytest.ini \
+            --exclude=slugs.json \
+            --exclude=_all_collected.json \
+            . | $SSH_CMD $REMOTE "tar xf - -C /opt/phosphene"
+
+          echo "✅ 文件同步完成"
 
       # ── 远程更新 & 重启 ──
       - name: 🔄 安装依赖 & 重启服务
         run: |
           ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
             "cd /opt/phosphene && \
              source venv/bin/activate && \
