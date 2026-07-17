@@ -163,6 +163,42 @@ class TestConfig:
         assert cfg["ai"]["model"] == "deepseek-v4-flash"
 
 
+class TestAIClientKeyValidation:
+    @staticmethod
+    def _config():
+        return {
+            "ai": {
+                "api_key": "${OPENAI_API_KEY}",
+                "base_url": "https://api.example.com/v1",
+                "model": "test-model",
+            },
+            "runtime": {},
+        }
+
+    def test_rejects_non_ascii_api_key_before_creating_client(self, monkeypatch):
+        from core.ai_client import AIClient
+
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-中文密钥")
+        with pytest.raises(ValueError, match="ASCII"):
+            AIClient(self._config())
+
+    def test_uses_siliconflow_key_when_openai_key_is_unset(self, monkeypatch):
+        import core.ai_client as ai_client
+
+        captured = {}
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("SILICONFLOW_API_KEY", "sk-ascii-fallback")
+        monkeypatch.setattr(ai_client, "OpenAI", FakeOpenAI)
+
+        ai_client.AIClient(self._config())
+        assert captured["api_key"] == "sk-ascii-fallback"
+
+
 class TestRegistry:
     """测试分类注册表"""
 

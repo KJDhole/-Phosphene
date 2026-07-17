@@ -46,6 +46,18 @@ jobs:
           ssh-keyscan -p ${{ secrets.SERVER_PORT }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
           echo "SSH_KEY_FINGERPRINT=$(ssh-keygen -lf ~/.ssh/deploy_key -E sha256 2>/dev/null | awk '{print $2}')" >> $GITHUB_ENV
 
+      - name: Configure runtime API key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -c "import os; key=os.environ.get('OPENAI_API_KEY', ''); assert key and key.isascii(), 'OPENAI_API_KEY must be present and ASCII-only'"
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "sudo install -d -m 700 /etc/phosphene && sudo install -d -m 755 /etc/systemd/system/phosphene.service.d && printf '[Service]\\nEnvironmentFile=/etc/phosphene/phosphene.env\\n' | sudo tee /etc/systemd/system/phosphene.service.d/10-api-key.conf >/dev/null && sudo chmod 644 /etc/systemd/system/phosphene.service.d/10-api-key.conf && sudo systemctl daemon-reload"
+          printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY" | ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "sudo tee /etc/phosphene/phosphene.env >/dev/null && sudo chmod 600 /etc/phosphene/phosphene.env"
+
       # ── 测试 SSH 连接 ──
       - name: 🔌 测试 SSH 连接
         run: |

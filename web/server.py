@@ -12,13 +12,16 @@ class SPAStaticFiles(StaticFiles):
     """Serve the React entry point for client-side routes, never for unknown APIs."""
 
     async def get_response(self, path: str, scope):
+        is_api_path = path.replace("\\", "/").startswith("api/")
+        if is_api_path:
+            raise StarletteHTTPException(status_code=404)
         try:
             response = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
-            if exc.status_code != 404 or path.startswith("api/"):
+            if exc.status_code != 404 or is_api_path:
                 raise
             return await super().get_response("index.html", scope)
-        if response.status_code == 404 and not path.startswith("api/"):
+        if response.status_code == 404 and not is_api_path:
             return await super().get_response("index.html", scope)
         return response
 

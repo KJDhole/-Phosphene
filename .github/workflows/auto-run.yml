@@ -40,6 +40,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate API key configuration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -c "import os; key=os.environ.get('OPENAI_API_KEY', ''); assert key and key.isascii(), 'OPENAI_API_KEY must be present and ASCII-only'"
+
       - name: Run pipeline (all categories)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

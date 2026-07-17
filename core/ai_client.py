@@ -34,6 +34,8 @@ class AIClient:
         api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key and configured_key.startswith("${") and configured_key.endswith("}"):
             api_key = os.getenv(configured_key[2:-1], "")
+        if not api_key:
+            api_key = os.getenv("SILICONFLOW_API_KEY", "")
         if not api_key and os.getenv("PHOSPHENE_ALLOW_CONFIG_SECRET") == "1":
             api_key = configured_key
 
@@ -42,6 +44,11 @@ class AIClient:
                 "\n❌ 未设置 API 密钥！请通过环境变量设置:\n"
                 "   set OPENAI_API_KEY=sk-xxxxx\n"
                 "   或在 config.yaml 中填写 api_key"
+            )
+        if not api_key.isascii():
+            raise ValueError(
+                "API 密钥必须仅包含 ASCII 字符；请更新 GitHub Secret "
+                "或服务器的 OPENAI_API_KEY 环境变量。"
             )
 
         self.client = OpenAI(api_key=str(api_key), base_url=ai["base_url"], timeout=60.0)
