@@ -80,6 +80,21 @@ class TestParseScript:
         scenes = _parse_structured(script)
         assert scenes[0]["lines"] == ["第一行", "第二行", "第三行"]
 
+    def test_parse_complete_eight_scene_script(self):
+        from core.video_generator import _parse_structured
+
+        script = "\n\n".join(
+            f"## S{i} | 场景{i} | {visual_type} | a1\n文案：第{i}句"
+            for i, visual_type in enumerate(
+                ["explode", "number", "chain", "pop", "text", "tag", "chain", "ending"]
+            )
+        )
+        scenes = _parse_structured(script)
+        assert len(scenes) == 8
+        assert [scene["visualType"] for scene in scenes] == [
+            "explode", "number", "chain", "pop", "text", "tag", "chain", "ending"
+        ]
+
     def test_parse_legacy_empty(self):
         """空脚本应返回空列表"""
         from core.video_generator import _parse_legacy
@@ -134,6 +149,36 @@ class TestParseFormats:
         assert "blog" in result
         assert result["blog"] == "博客内容"
         assert result["twitter"] == "推文内容"
+
+
+class TestVideoScriptPrompts:
+    def test_video_prompts_define_a_parseable_30_second_contract(self):
+        from core.ai_client import AIClient
+
+        client = AIClient.__new__(AIClient)
+        system = client._video_script_system("技术趋势")
+        user = client._video_script_user("# 原文\n\n包含一项已验证事实。[github:1]", "技术趋势")
+
+        assert "S0=explode" in system
+        assert "S7=ending" in system
+        assert "80-120" in system
+        assert "不得编造" in system
+        assert "禁止前言" in system
+        assert "仅输出最终脚本" in system
+        assert "静默自检" in user
+        assert "## S0 | 场景名称 | explode | a1" in user
+        assert "渐变色：a1" in user
+
+    def test_video_prompt_uses_category_gradient_and_truncates_blog(self):
+        from core.ai_client import AIClient
+
+        client = AIClient.__new__(AIClient)
+        blog = "甲" * 3200
+        user = client._video_script_user(blog, "中医中药")
+
+        assert "渐变色：a7" in user
+        assert "甲" * 3000 in user
+        assert "甲" * 3001 not in user
 
     def test_parse_formats_empty(self):
         from core.ai_client import AIClient
