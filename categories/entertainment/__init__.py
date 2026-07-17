@@ -1,4 +1,4 @@
-"""
+﻿"""
 🎬 娱乐文化分类 — 影视、音乐、综艺、明星、游戏
 """
 
@@ -37,10 +37,8 @@ class EntertainmentCategory(BaseCategory):
             SourceConfig(
                 name="weibo_hot",
                 display_name="微博热搜",
-                type="scrapling",
+                type="api",
                 url="https://weibo.com/ajax/side/hotSearch",
-                scrapling_mode="stealth",
-                selectors={},
                 description="微博热搜榜",
             ),
             SourceConfig(
@@ -59,44 +57,28 @@ class EntertainmentCategory(BaseCategory):
 
     @property
     def system_prompt(self) -> str:
-        return """你是资深娱乐文化评论人，ID：文化观察。
-你的文章特点：
-- 敏锐捕捉文化潮流和娱乐热点
-- 深入浅出，既有深度又有趣味性
-- 观点独到，不人云亦云
-- 对影视、音乐、综艺等有专业见解
-- 语言生动活泼，适合年轻读者
-输出格式为 Markdown。"""
+        return """## 角色
+你是资深娱乐文化评论人，ID：文化观察。
+你敏锐捕捉文化潮流和娱乐热点，对影视、音乐、综艺、流行文化有专业见解。
+你的文章既有深度又有趣味性，观点独到不人云亦云。
+
+## 写作约束
+- 涉及明星/事件的事实部分（时间、数据、言论）必须源自采集数据
+- 主观评论与客观事实区分清楚
+- 评论有依据，不为了博眼球而过度解读
+- 尊重创作和艺人，评论作品时对事不对人""" + "\n\n" + """## 输出格式
+Markdown。语言生动活泼，适合年轻读者。"""
 
     def user_prompt_template(self, raw_data: dict) -> str:
-        from datetime import datetime, timezone, timedelta
-        BJT = timezone(timedelta(hours=8))
-        now = datetime.now(BJT)
-
-        summary_lines = []
-        for name, data in raw_data.items():
-            if data and not data.startswith("[采集失败"):
-                summary_lines.append(f"\n## {name}")
-                summary_lines.append(data.strip()[:800])
-
-        material = "\n".join(summary_lines) or "（所有平台均采集失败，根据 AI 知识库自主创作）"
-
-        return f"""今天是 {now.strftime('%Y年%m月%d日 %H:%M')}。
-
-以下是今日娱乐文化领域热点数据：
-
-{material}
-
-请完成以下任务：
-1. **热点盘点**：总结今日娱乐文化圈最热门的事件
-2. **深度选题**：选择最有话题性的一个角度（如某部热映电影解析、明星事件、音乐潮流）
-3. **写作**：写一篇 1500-2000 字的娱乐文化文章，包括：
-   - 吸引人的标题和副标题
-   - 热点事件描述（客观事实）
-   - 深度分析（为什么火？反映了什么文化趋势？）
-   - 同类对比或历史参照
-   - 大众反响与争议点
-   - 标签（3-5个，如 #电影 #音乐 #综艺 #流行文化）
-4. 结尾署名：*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
-
-全文用 Markdown 格式。"""
+        return self._build_user_prompt(
+            domain_label="娱乐文化",
+            sections=[
+                {"title": "标题和副标题", "content": "吸引眼球但不标题党"},
+                {"title": "热点盘点", "content": "今日最热门的事件速览"},
+                {"title": "深度选题", "content": "选最有话题性的一个角度（电影解析/明星事件/音乐潮流）"},
+                {"title": "为什么火", "content": "反映了什么文化趋势和大众心理"},
+                {"title": "同类对比", "content": "历史参照或同类作品对比分析"},
+                {"title": "标签", "content": "3-5 个，如 #电影 #音乐 #综艺"},
+            ],
+            raw_data=raw_data,
+        )

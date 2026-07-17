@@ -1,7 +1,7 @@
 """Pydantic 请求/响应模型"""
 
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Any, Literal, Optional
 
 
 class SourceInfo(BaseModel):
@@ -19,7 +19,7 @@ class CategoryOut(BaseModel):
 
 
 class RunRequest(BaseModel):
-    categories: list[str]
+    categories: list[str] = Field(min_length=1, max_length=10)
     debug: bool = False
     use_scrapling: bool = True
 
@@ -27,6 +27,8 @@ class RunRequest(BaseModel):
 class RunStatus(BaseModel):
     running: bool
     current_category: Optional[str] = None
+    task_id: Optional[str] = None
+    status: str = "idle"
 
 
 class ArticleSummary(BaseModel):
@@ -35,6 +37,11 @@ class ArticleSummary(BaseModel):
     title: str
     date: str
     formats: list[str]
+    review_status: str = "legacy_unverified"
+    quality_passed: bool = False
+    evidence_count: int = 0
+    issue_count: int = 0
+    deployment_ready: bool = False
 
 
 class ArticleDetail(BaseModel):
@@ -43,6 +50,16 @@ class ArticleDetail(BaseModel):
     title: str
     date: str
     formats: dict[str, str]
+    review_status: str = "legacy_unverified"
+    review_note: str = ""
+    quality: dict[str, Any] = Field(default_factory=dict)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    deployment_ready: bool = False
+
+
+class ReviewUpdate(BaseModel):
+    status: Literal["awaiting_review", "changes_requested", "approved"]
+    note: str = Field(default="", max_length=1000)
 
 
 class ConfigOut(BaseModel):
@@ -58,9 +75,10 @@ class VideoStatus(BaseModel):
     progress: float = 0.0
     video_url: Optional[str] = None
     error: Optional[str] = None
+    message: Optional[str] = None
 
 class VideoConfig(BaseModel):
     """✅ 预留 — 下版本使用"""
     prompt_template: str = ""
     voice: str = "zh-CN-XiaoxiaoNeural"
-    scene_overrides: dict = {}
+    scene_overrides: dict = Field(default_factory=dict)

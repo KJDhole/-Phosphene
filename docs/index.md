@@ -37,4 +37,4 @@
 
 ---
 
-*👤 Glenn · 由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com · P26-07-07 20:52*
+*👤 Glenn · 由 熠觉 · Phosphene 自动生成 · 联系: contact@example.com · P26-07-07 20:52*

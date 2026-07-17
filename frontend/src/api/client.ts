@@ -5,6 +5,11 @@ const api = axios.create({
   timeout: 30000,
 });
 
+async function cachedGet<T>(_key: string, url: string, _staleMs: number = 30000): Promise<T> {
+  const res = await api.get<T>(url);
+  return res.data;
+}
+
 export interface Category {
   name: string;
   display_name: string;
@@ -19,6 +24,33 @@ export interface ArticleSummary {
   title: string;
   date: string;
   formats: string[];
+  review_status: ReviewStatus;
+  quality_passed: boolean;
+  evidence_count: number;
+  issue_count: number;
+  deployment_ready: boolean;
+}
+
+export type ReviewStatus = 'awaiting_review' | 'changes_requested' | 'approved' | 'not_required' | 'legacy_unverified';
+
+export interface EvidenceItem {
+  source_id: string;
+  source_name: string;
+  source_display_name?: string;
+  title: string;
+  url: string;
+  published_at?: string;
+  summary?: string;
+  author?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface QualityReport {
+  passed?: boolean;
+  errors?: string[];
+  warnings?: string[];
+  cited_sources?: string[];
+  evidence_count?: number;
 }
 
 export interface ArticleDetail {
@@ -27,16 +59,22 @@ export interface ArticleDetail {
   title: string;
   date: string;
   formats: Record<string, string>;
+  review_status: ReviewStatus;
+  review_note: string;
+  quality: QualityReport;
+  evidence: EvidenceItem[];
+  deployment_ready: boolean;
 }
 
 export interface RunStatus {
   running: boolean;
   current_category: string | null;
+  task_id?: string | null;
+  status?: string;
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const res = await api.get<Category[]>('/categories');
-  return res.data;
+  return cachedGet<Category[]>('categories', '/categories', 60000);
 }
 
 export async function runCategory(category: string, use_scrapling: boolean = true): Promise<void> {
@@ -59,9 +97,8 @@ export async function getRunStatus(): Promise<RunStatus> {
 }
 
 export async function fetchHistory(category?: string): Promise<ArticleSummary[]> {
-  const params = category ? { category } : {};
-  const res = await api.get<ArticleSummary[]>('/history', { params });
-  return res.data;
+  const key = category ? `history:${category}` : 'history:all';
+  return cachedGet<ArticleSummary[]>(key, `/history${category ? `?category=${category}` : ''}`, 15000);
 }
 
 export async function fetchArticleDetail(slug: string, category?: string): Promise<ArticleDetail> {
@@ -73,6 +110,18 @@ export async function fetchArticleDetail(slug: string, category?: string): Promi
 export async function deleteArticle(slug: string, category?: string): Promise<void> {
   const params = category ? { category } : {};
   await api.delete(`/history/${slug}`, { params });
+}
+
+export async function updateArticleReview(
+  slug: string,
+  category: string,
+  status: 'awaiting_review' | 'changes_requested' | 'approved',
+  note: string = '',
+): Promise<ArticleDetail> {
+  const res = await api.put<ArticleDetail>(`/history/${slug}/review`, { status, note }, {
+    params: { category },
+  });
+  return res.data;
 }
 
 export async function fetchConfig(): Promise<string> {
@@ -88,42 +137,71 @@ export function createLogWebSocket(
   onLog: (data: any) => void,
   onStatus: (data: any) => void,
   onComplete: (data: any) => void,
-): WebSocket {
+): LogSocketHandle {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
   const url = `${protocol}//${host}/api/ws/logs`;
-  const ws = new WebSocket(url);
+  let ws: WebSocket | null = null;
+  let retryCount = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let closedByClient = false;
 
-  ws.onopen = () => {
-    console.log('WebSocket 已连接:', url);
+  const clearTimers = () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    reconnectTimer = null;
+    heartbeatTimer = null;
   };
 
-  ws.onerror = () => {
-    console.error('WebSocket 连接失败:', url);
-  };
+  const connect = () => {
+    if (closedByClient) return;
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      retryCount = 0;
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (ws?.readyState === WebSocket.OPEN) ws.send('ping');
+      }, 30000);
+    };
 
-  ws.onclose = (e) => {
-    console.log('WebSocket 已断开:', e.code, e.reason);
-  };
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'pong') return;
+        if (data.type === 'log') onLog(data);
+        if (data.type === 'status') onStatus(data);
+        if (data.type === 'complete') onComplete(data);
+      } catch { /* ignore malformed server events */ }
+    };
 
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      switch (data.type) {
-        case 'log':
-          onLog(data);
-          break;
-        case 'status':
-          onStatus(data);
-          break;
-        case 'complete':
-          onComplete(data);
-          break;
+    ws.onclose = () => {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+      if (!closedByClient) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+        retryCount += 1;
+        reconnectTimer = setTimeout(connect, delay);
       }
-    } catch { /* ignore parse errors */ }
+    };
   };
+  connect();
 
-  return ws;
+  return {
+    close: () => {
+      closedByClient = true;
+      clearTimers();
+      ws?.close(1000, 'client cleanup');
+    },
+    get readyState() {
+      return ws?.readyState ?? WebSocket.CLOSED;
+    },
+  };
+}
+
+export interface LogSocketHandle {
+  close: () => void;
+  readonly readyState: number;
 }
 
 export interface VideoStatusData {
@@ -132,6 +210,7 @@ export interface VideoStatusData {
   progress: number;
   video_url: string | null;
   error: string | null;
+  message: string | null;
 }
 
 export async function generateVideo(slug: string, category: string): Promise<VideoStatusData> {

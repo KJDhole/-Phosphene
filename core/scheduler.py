@@ -6,13 +6,14 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from rich.console import Console
 from rich.panel import Panel
+
+from core.console import FailureSafeConsole
 
 # 北京时间
 BJT = timezone(timedelta(hours=8))
 ROOT = Path(__file__).parent.parent
-CONSOLE = Console()
+CONSOLE = FailureSafeConsole()
 
 
 class Scheduler:
@@ -22,6 +23,7 @@ class Scheduler:
         self.interval = config.get("schedule", {}).get("interval_hours", 6)
         self.categories = config.get("categories", {}).get("active", ["tech"])
         self._running = False
+        self._next_index = 0
 
     def run_forever(self):
         """进入守护循环"""
@@ -29,15 +31,18 @@ class Scheduler:
 
         self._running = True
         hours = self.interval
+        if not self.categories:
+            raise ValueError("categories.active 不能为空")
+        if hours <= 0:
+            raise ValueError("schedule.interval_hours 必须大于 0")
 
         # 注册任务 — 轮询所有启用的分类
-        from main import run_once_for_category
+        from core.runner import run_once_for_category
 
         def _run_next():
             """轮询下一个分类"""
-            # 简单实现：根据当前小时取模选分类
-            idx = (datetime.now(BJT).hour // hours) % len(self.categories)
-            cat = self.categories[idx]
+            cat = self.categories[self._next_index]
+            self._next_index = (self._next_index + 1) % len(self.categories)
             CONSOLE.print(f"[dim]📋 调度选择分类: {cat}[/]")
             run_once_for_category(cat)
 

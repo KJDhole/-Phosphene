@@ -1,15 +1,14 @@
 """视频生成 API — 触发/状态/下载/预留配置"""
 
-import os
-import time
 import asyncio
+import re
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 from web.routes import router
 from web.models import VideoStatus, VideoConfig
-from main import ROOT, load_config
+from core.config import ROOT, load_config
 
 # 运行状态（进程内简单存储）
 _generating: dict[str, VideoStatus] = {}
@@ -18,10 +17,14 @@ _generating: dict[str, VideoStatus] = {}
 @router.get("/video/status/{slug}", response_model=VideoStatus)
 def get_video_status(slug: str, category: Optional[str] = None):
     """查询视频生成状态"""
+    _validate_slug(slug)
+    if category:
+        _validate_identifiers(slug, category)
     posts_dir = ROOT / "docs" / "posts"
 
-    if slug in _generating:
-        return _generating[slug]
+    key = _video_key(slug, category)
+    if key in _generating:
+        return _generating[key]
 
     video_path = _find_video(slug, category, posts_dir)
     if video_path:
@@ -29,7 +32,7 @@ def get_video_status(slug: str, category: Optional[str] = None):
             slug=slug,
             status="done",
             progress=1.0,
-            video_url=f"/api/video/{slug}",
+            video_url=f"/api/video/{slug}?category={category}" if category else f"/api/video/{slug}",
         )
 
     return VideoStatus(slug=slug, status="pending")
@@ -38,6 +41,9 @@ def get_video_status(slug: str, category: Optional[str] = None):
 @router.get("/video/{slug}")
 def get_video(slug: str, category: Optional[str] = None):
     """提供已生成的视频文件"""
+    _validate_slug(slug)
+    if category:
+        _validate_identifiers(slug, category)
     posts_dir = ROOT / "docs" / "posts"
     video_path = _find_video(slug, category, posts_dir)
 
@@ -63,11 +69,17 @@ def get_video(slug: str, category: Optional[str] = None):
 @router.post("/video/generate/{slug}")
 async def trigger_generate_video(slug: str, category: str):
     """触发视频生成（异步后台任务）"""
-    if slug in _generating and _generating[slug].status == "generating":
+    _validate_identifiers(slug, category)
+    key = _video_key(slug, category)
+    if key in _generating and _generating[key].status == "generating":
         raise HTTPException(400, "视频正在生成中")
 
+    script_path = ROOT / "docs" / "posts" / category / slug / "video_script.md"
+    if not script_path.exists():
+        raise HTTPException(404, "视频脚本不存在")
+
     status = VideoStatus(slug=slug, status="generating", progress=0.0)
-    _generating[slug] = status
+    _generating[key] = status
 
     asyncio.create_task(_run_generate(slug, category))
     return status
@@ -77,10 +89,12 @@ async def _run_generate(slug: str, category: str):
     """后台执行视频生成，逐步更新进度"""
     from core.video_generator import generate_video as _gen_video
 
+    key = _video_key(slug, category)
+
     def update_progress(pct: float, msg: str):
-        if slug in _generating:
-            _generating[slug].progress = round(pct, 2)
-            _generating[slug].error = msg
+        if key in _generating:
+            _generating[key].progress = round(pct, 2)
+            _generating[key].message = msg
 
     try:
         update_progress(0.05, "开始生成...")
@@ -88,21 +102,23 @@ async def _run_generate(slug: str, category: str):
 
         # 在线程池中执行同步的 _gen_video，传 progress_callback
         loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
+        await loop.run_in_executor(
             None,
             lambda: _gen_video(category, slug, posts_dir, update_progress),
         )
 
-        if slug in _generating:
-            _generating[slug].status = "done"
-            _generating[slug].progress = 1.0
-            _generating[slug].video_url = f"/api/video/{slug}"
-            _generating[slug].error = None
+        if key in _generating:
+            _generating[key].status = "done"
+            _generating[key].progress = 1.0
+            _generating[key].video_url = f"/api/video/{slug}?category={category}"
+            _generating[key].error = None
+            _generating[key].message = "视频生成完成"
 
     except Exception as e:
-        if slug in _generating:
-            _generating[slug].status = "failed"
-            _generating[slug].error = str(e)
+        if key in _generating:
+            _generating[key].status = "failed"
+            _generating[key].error = str(e)
+            _generating[key].message = "视频生成失败"
 
 
 # ✅ 预留 — 下版本实现
@@ -131,9 +147,28 @@ def _find_video(slug: str, category: Optional[str], posts_dir: Path) -> Optional
         vp = posts_dir / category / slug / "video.mp4"
         return vp if vp.exists() else None
 
+    if not posts_dir.exists():
+        return None
     for cat_dir in posts_dir.iterdir():
         if cat_dir.is_dir():
             vp = cat_dir / slug / "video.mp4"
             if vp.exists():
                 return vp
     return None
+
+
+def _video_key(slug: str, category: Optional[str]) -> str:
+    return f"{category or '*'}:{slug}"
+
+
+def _validate_identifiers(slug: str, category: str) -> None:
+    from core.registry import get_category
+
+    _validate_slug(slug)
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", category) or get_category(category) is None:
+        raise HTTPException(400, "非法分类")
+
+
+def _validate_slug(slug: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", slug):
+        raise HTTPException(400, "非法 slug")

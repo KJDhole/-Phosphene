@@ -51,6 +51,6 @@ Artforum 的艺术评论持续关注当代艺术的前沿动态：
 
 ---
 
-*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: holekjd@163.com*
+*作者: Glenn · 本文章由 熠觉 · Phosphene 自动生成 · 联系: contact@example.com*
 
 #文学 #书评 #艺术 #阅读 #出版

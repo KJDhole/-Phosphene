@@ -1,5 +1,5 @@
-import { Checkbox, Spin } from 'antd';
-import { ApiOutlined, SyncOutlined, LinkOutlined, RightOutlined } from '@ant-design/icons';
+import { Alert, Spin } from 'antd';
+import { CheckOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCategories, type Category } from '../api/client';
 
@@ -8,100 +8,58 @@ interface Props {
   onChange: (selected: string[]) => void;
 }
 
-const typeMeta: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-  api: { icon: <ApiOutlined />, color: '#7C3AED', label: 'API' },
-  rss: { icon: <SyncOutlined />, color: '#10B981', label: 'RSS' },
-  scrapling: { icon: <LinkOutlined />, color: '#F59E0B', label: '爬虫' },
+const typeLabels: Record<string, string> = {
+  api: 'API',
+  rss: 'RSS',
+  scrapling: 'WEB',
 };
 
 export default function CategoryPicker({ selected, onChange }: Props) {
-  const { data: categories, isLoading } = useQuery<Category[]>({
+  const { data: categories = [], isLoading, isError } = useQuery<Category[]>({
     queryKey: ['categories'],
     queryFn: fetchCategories,
   });
 
-  if (isLoading) return <Spin />;
+  if (isLoading) return <div className="picker-loading"><Spin /> 读取信源配置…</div>;
+  if (isError) return <Alert type="error" message="无法读取分类，请检查后端服务" />;
+
+  const toggle = (name: string) => {
+    onChange(
+      selected.includes(name)
+        ? selected.filter((value) => value !== name)
+        : [...selected, name],
+    );
+  };
 
   return (
     <div className="category-grid">
-      {categories?.map((cat) => {
-        const isChecked = selected.includes(cat.name);
-
-        /* Deduplicate source types */
-        const typeCounts: Record<string, number> = {};
-        cat.sources.forEach((s) => {
-          typeCounts[s.type] = (typeCounts[s.type] || 0) + 1;
-        });
-        const uniqueTypes = Object.keys(typeCounts);
-
+      {categories.map((category, index) => {
+        const checked = selected.includes(category.name);
+        const sourceTypes = Array.from(new Set(category.sources.map((source) => source.type)));
         return (
-          <div
-            key={cat.name}
-            className={`category-card ${isChecked ? 'selected' : ''}`}
-            onClick={() => {
-              if (isChecked) {
-                onChange(selected.filter((n) => n !== cat.name));
-              } else {
-                onChange([...selected, cat.name]);
-              }
-            }}
-            role="checkbox"
-            aria-checked={isChecked}
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (isChecked) {
-                  onChange(selected.filter((n) => n !== cat.name));
-                } else {
-                  onChange([...selected, cat.name]);
-                }
-              }
-            }}
+          <button
+            type="button"
+            key={category.name}
+            className={`category-card ${checked ? 'selected' : ''}`}
+            onClick={() => toggle(category.name)}
+            aria-pressed={checked}
           >
-            {/* Selection indicator */}
-            <div className="category-check">
-              <Checkbox checked={isChecked} />
-            </div>
-
-            {/* Emoji + Name */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="category-emoji">{cat.emoji}</span>
-              <span className="category-name">{cat.display_name}</span>
-            </div>
-
-            {/* Source count */}
-            <div className="category-meta">
-              <span>{cat.sources.length}</span> 个数据源
-            </div>
-
-            {/* Source type badges */}
-            {uniqueTypes.length > 0 && (
-              <div className="category-types">
-                {uniqueTypes.map((type) => {
-                  const meta = typeMeta[type];
-                  if (!meta) return null;
-                  return (
-                    <span
-                      key={type}
-                      className="type-badge"
-                      style={{
-                        background: `${meta.color}0d`,
-                        color: meta.color,
-                        borderColor: `${meta.color}25`,
-                      }}
-                    >
-                      <span className="type-dot" style={{ background: meta.color }} />
-                      <span>{meta.label}</span>
-                      {typeCounts[type] > 1 && (
-                        <span className="type-count">×{typeCounts[type]}</span>
-                      )}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            <span className="category-order">0{index + 1}</span>
+            <span className="category-select-indicator">
+              {checked ? <CheckOutlined /> : <i />}
+            </span>
+            <span className="category-emoji">{category.emoji}</span>
+            <span className="category-name">{category.display_name}</span>
+            <span className="category-description">{category.description}</span>
+            <span className="category-footer">
+              <b>{category.sources.length}</b> 个信源
+              <span className="category-types">
+                {sourceTypes.map((type) => (
+                  <i key={type}>{typeLabels[type] || type.toUpperCase()}</i>
+                ))}
+              </span>
+            </span>
+          </button>
         );
       })}
     </div>

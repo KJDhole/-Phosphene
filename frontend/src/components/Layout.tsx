@@ -1,64 +1,60 @@
-import { Layout as AntLayout } from 'antd';
-import { Outlet } from 'react-router-dom';
+import { useState } from 'react';
+import { Button, Tooltip } from 'antd';
+import { EyeOutlined, FullscreenExitOutlined } from '@ant-design/icons';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 
-const { Content, Header } = AntLayout;
+const pageNames: Record<string, string> = {
+  '/': '今日生产',
+  '/review': '内容审核',
+  '/history': '内容档案',
+};
+
+function currentPage(pathname: string) {
+  if (pathname.startsWith('/video/')) return '视频工作室';
+  if (pathname.startsWith('/history/')) return '内容审核室';
+  return pageNames[pathname] || '熠觉';
+}
 
 export default function Layout() {
+  const location = useLocation();
+  const [focusMode, setFocusMode] = useState(false);
+  const date = new Intl.DateTimeFormat('zh-CN', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  }).format(new Date());
+
   return (
-    <AntLayout style={{ minHeight: '100vh', background: 'transparent' }}>
-      <Sidebar />
-      <AntLayout style={{
-        background: 'transparent',
-        marginLeft: 0,
-      }}>
-        <Header style={{
-          background: 'rgba(255, 255, 255, 0.5)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          padding: '0 28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(239, 231, 252, 0.8)',
-          height: 64,
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}>
-          <span style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: '#1E1B4B',
-            letterSpacing: '0.3px',
-          }}>
-            ✦ 熠觉 · Phosphene v2.1
-          </span>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
-            <span style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#10B981',
-              display: 'inline-block',
-            }} />
-            <span style={{ fontSize: 13, color: '#64748B' }}>系统在线</span>
+    <div className={`app-shell ${focusMode ? 'focus-mode' : ''}`}>
+      <Sidebar compact={focusMode} />
+      <div className="app-stage">
+        <header className="topbar">
+          <div className="topbar-context">
+            <span className="topbar-kicker">PHOSPHENE / EDITORIAL OS</span>
+            <span className="topbar-divider" />
+            <strong>{currentPage(location.pathname)}</strong>
           </div>
-        </Header>
-        <Content style={{
-          margin: 24,
-          padding: 0,
-          minHeight: 'calc(100vh - 64px - 48px)',
-        }}>
-          <div className="page-enter">
+          <div className="topbar-actions">
+            <span className="topbar-date">{date}</span>
+            <Tooltip title={focusMode ? '退出聚焦视图' : '进入演示聚焦视图'}>
+              <Button
+                type="text"
+                className="focus-toggle"
+                icon={focusMode ? <FullscreenExitOutlined /> : <EyeOutlined />}
+                onClick={() => setFocusMode((value) => !value)}
+              >
+                {focusMode ? '退出聚焦' : '聚焦视图'}
+              </Button>
+            </Tooltip>
+          </div>
+        </header>
+        <main className="app-content">
+          <div className="page-enter" key={location.pathname}>
             <Outlet />
           </div>
-        </Content>
-      </AntLayout>
-    </AntLayout>
+        </main>
+      </div>
+    </div>
   );
 }

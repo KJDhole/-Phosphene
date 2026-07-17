@@ -19,12 +19,12 @@ class LogCapture:
         if "\n" in text or len(self._buffer) > 100:
             line = self._buffer.strip()
             if line:
-                asyncio.ensure_future(self._broadcast(self._category, "info", line))
+                asyncio.create_task(self._broadcast(self._category, "info", line))
             self._buffer = ""
 
     def flush(self):
         if self._buffer.strip():
-            asyncio.ensure_future(self._broadcast(self._category, "info", self._buffer.strip()))
+            asyncio.create_task(self._broadcast(self._category, "info", self._buffer.strip()))
             self._buffer = ""
 
     def __enter__(self):

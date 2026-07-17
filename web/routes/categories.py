@@ -1,6 +1,5 @@
 """分类列表 API"""
 
-from fastapi import APIRouter
 from web.routes import router
 from web.models import CategoryOut, SourceInfo
 from core.registry import list_categories, get_category, discover_categories

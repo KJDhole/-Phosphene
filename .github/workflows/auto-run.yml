@@ -10,7 +10,24 @@ on:
   workflow_dispatch:                 # 支持手动触发
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
   generate:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +40,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run pipeline
+      - name: Run pipeline (all categories)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python main.py
+        run: |
+          for cat in tech finance business entertainment literature world zhongyi; do
+            echo "=== Running: $cat ==="
+            python main.py --category "$cat" || echo "⚠️ $cat failed"
+          done
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

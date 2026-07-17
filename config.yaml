@@ -1,5 +1,5 @@
 # ============================================================
-# 熠觉 · Phosphene v2.0 — 配置文件
+# 熠觉 · Phosphene v2.2 — 配置文件
 # ============================================================
 
 # ---- AI 模型配置 ----
@@ -9,7 +9,7 @@ ai:
   # DeepSeek:  https://api.deepseek.com/v1
   # 硅基流动:  https://api.siliconflow.cn/v1
   # 通义千问:  https://dashscope.aliyuncs.com/compatible-mode/v1
-  api_key: "sk-你的key"   # 临时直接填写，测试完改回 ${OPENAI_API_KEY}
+  api_key: "${OPENAI_API_KEY}"   # 只从环境变量读取，不要把真实密钥写进配置
   base_url: "https://api.deepseek.com/v1"
   model: "deepseek-v4-flash"   # 免费模型
   temperature: 0.8
@@ -56,6 +56,31 @@ publish:
 # ---- 调度（守护模式） ----
 schedule:
   interval_hours: 6
+
+# ---- 内容质量门槛 ----
+quality:
+  min_evidence_items: 3
+  require_human_review: true
+  high_risk_categories:
+    - finance
+    - world
+    - zhongyi
+
+# ---- 网络采集 ----
+network:
+  timeout_seconds: 20
+  max_connections: 8
+  max_keepalive_connections: 4
+  trust_env: true              # 允许使用系统 HTTP(S)_PROXY
+  fallback_without_env: true   # 代理/证书环境异常时自动尝试直连
+
+# ---- 诊断日志 ----
+diagnostics:
+  enabled: true
+  directory: "./logs"
+  filename: "phosphene-diagnostic.log"
+  max_bytes: 10000000          # 单文件 10 MB
+  backup_count: 5              # 保留 5 份滚动日志
 
 # ---- 运行模式 ----
 runtime:
