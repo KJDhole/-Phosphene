@@ -70,48 +70,63 @@ jobs:
       - name: 📤 同步文件到服务器
         run: |
           echo "正在传输文件..."
-          EXCLUDES="--exclude=.git/
-            --exclude=.github/
-            --exclude=.agents/
-            --exclude=.claude/
-            --exclude=.superpowers/
-            --exclude=__pycache__/
-            --exclude='*.py[cod]'
-            --exclude=.venv/
-            --exclude=venv/
-            --exclude=.pytest_cache/
-            --exclude=node_modules/
-            --exclude=frontend/
-            --exclude=tests/
-            --exclude=data/
-            --exclude=config.yaml
-            --exclude=.env
-            --exclude=.gitignore
-            --exclude='*.mp4'
-            --exclude='*.mp3'
-            --exclude=hyperframes-video/
-            --exclude=remotion-video/
-            --exclude=demo_30s.mp4
-            --exclude=tmp_gen.py
-            --exclude=video_maker.py
-            --exclude=pytest.ini
-            --exclude=slugs.json
-            --exclude=_all_collected.json"
+          SSH_CMD="ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+          SSH_DEST="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/phosphene/"
+          SSH_DEST_RAW="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
 
           # 先检测 rsync 是否可用，不可用则用 tar+ssh
           if command -v rsync &>/dev/null; then
             echo "使用 rsync 同步..."
             rsync -avz --delete \
-              -e "ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-              $EXCLUDES \
-              ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/phosphene/
+              -e "$SSH_CMD" \
+              --exclude=.git/ \
+              --exclude=.github/ \
+              --exclude=.agents/ \
+              --exclude=.claude/ \
+              --exclude=.superpowers/ \
+              --exclude=__pycache__/ \
+              --exclude='*.py[cod]' \
+              --exclude=.venv/ \
+              --exclude=venv/ \
+              --exclude=.pytest_cache/ \
+              --exclude=node_modules/ \
+              --exclude=frontend/ \
+              --exclude=tests/ \
+              --exclude=data/ \
+              --exclude=config.yaml \
+              --exclude=.env \
+              --exclude=.gitignore \
+              --exclude='*.mp4' \
+              --exclude='*.mp3' \
+              --exclude=hyperframes-video/ \
+              --exclude=remotion-video/ \
+              --exclude=demo_30s.mp4 \
+              --exclude=tmp_gen.py \
+              --exclude=video_maker.py \
+              --exclude=pytest.ini \
+              --exclude=slugs.json \
+              --exclude=_all_collected.json \
+              ./ $SSH_DEST
           else
             echo "rsync 不可用，使用 tar+ssh 传输..."
-            tar cf - . $EXCLUDES 2>/dev/null | \
-              ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
-                -o StrictHostKeyChecking=no \
-                ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-                "tar xf - -C /opt/phosphene"
+            tar cf - . \
+              --exclude=.git/ \
+              --exclude=.github/ \
+              --exclude=__pycache__/ \
+              --exclude='*.py[cod]' \
+              --exclude=.venv/ \
+              --exclude=venv/ \
+              --exclude=node_modules/ \
+              --exclude=frontend/ \
+              --exclude=tests/ \
+              --exclude=data/ \
+              --exclude=config.yaml \
+              --exclude=.env \
+              --exclude='*.mp4' \
+              --exclude='*.mp3' \
+              --exclude=hyperframes-video/ \
+              --exclude=remotion-video/ \
+              2>/dev/null | $SSH_CMD $SSH_DEST_RAW "tar xf - -C /opt/phosphene"
           fi
           echo "✅ 文件同步完成"
 
