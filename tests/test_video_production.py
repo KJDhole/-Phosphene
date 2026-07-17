@@ -116,3 +116,10 @@ def test_update_video_review_status_requires_an_existing_manifest(tmp_path):
     saved = json.loads(manifest.read_text(encoding="utf-8"))
     assert saved["review_status"] == "approved"
     assert saved["review_note"] == "looks good"
+
+
+def test_deploy_workflow_includes_remotion_and_installs_its_runtime_dependencies():
+    workflow = (Path(__file__).parent.parent / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+
+    assert "--exclude=remotion-video" not in workflow
+    assert "cd /opt/phosphene/remotion-video && npm ci" in workflow

@@ -106,7 +106,6 @@ jobs:
             --exclude='*.mp4' \
             --exclude='*.mp3' \
             --exclude=hyperframes-video \
-            --exclude=remotion-video \
             --exclude=demo_30s.mp4 \
             --exclude=tmp_gen.py \
             --exclude=video_maker.py \
@@ -129,6 +128,16 @@ jobs:
              source venv/bin/activate && \
              pip install -r requirements.txt --quiet"
           echo "✅ 依赖更新完成"
+
+      - name: 🎬 安装 Remotion 渲染依赖
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -o ConnectTimeout=30 \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "command -v node >/dev/null && command -v npm >/dev/null || { echo 'Node.js 和 npm 必须先安装在服务器上'; exit 1; }; \
+             cd /opt/phosphene/remotion-video && npm ci"
+          echo "✅ Remotion 依赖更新完成"
 
       # ── 重启服务 ──
       - name: 🔄 重启服务
